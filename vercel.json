@@ -1,0 +1,42 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "pt-backend/src/index.js",
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": [
+          "pt-backend/src/**/*",
+          "pt-backend/package.json"
+        ]
+      }
+    },
+    {
+      "src": "pt-manager/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "pt-manager/build"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "pt-backend/src/index.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "pt-manager/build/$1"
+    }
+  ],
+  "functions": {
+    "pt-backend/src/index.js": {
+      "maxDuration": 30
+    }
+  },
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "buildCommand": "cd pt-manager && npm run build",
+  "outputDirectory": "pt-manager/build"
+}

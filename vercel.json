@@ -1,18 +1,55 @@
 {
   "version": 2,
+  "builds": [
+    {
+      "src": "pt-manager/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "pt-manager/build"
+      }
+    }
+  ],
   "routes": [
     {
       "src": "/api/(.*)",
       "dest": "/api/index.js"
     },
     {
+      "src": "/static/(.*)",
+      "dest": "/static/$1"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "/favicon.ico"
+    },
+    {
+      "src": "/manifest.json",
+      "dest": "/manifest.json"
+    },
+    {
+      "src": "/logo192.png",
+      "dest": "/logo192.png"
+    },
+    {
+      "src": "/logo512.png",
+      "dest": "/logo512.png"
+    },
+    {
       "src": "/(.*)",
-      "dest": "pt-manager/build/$1"
+      "dest": "/index.html"
     }
   ],
-  "env": {
-    "NODE_ENV": "production"
-  },
   "buildCommand": "bash vercel-build.sh",
-  "outputDirectory": "pt-manager/build"
+  "outputDirectory": "pt-manager/build",
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ]
 }

@@ -11,13 +11,18 @@
 ### 1. Estructura de Archivos
 ```
 PTManager/
-├── vercel.json              # Configuración principal (functions para backend)
-├── pt-backend/
-│   ├── vercel.json         # Configuración específica del backend (functions)
-│   └── src/
-│       └── index.js        # Punto de entrada del servidor
-├── pt-manager/
-│   ├── vercel.json         # Configuración específica del frontend (builds)
+├── vercel.json              # Configuración principal
+├── api/                     # Directorio para funciones serverless
+│   ├── index.js            # Punto de entrada de la API
+│   └── package.json        # Dependencias de la API
+├── pt-backend/             # Código fuente del backend
+│   ├── src/
+│   │   ├── routes/         # Rutas de la API
+│   │   ├── middleware/     # Middleware
+│   │   └── config/         # Configuraciones
+│   └── package.json        # Dependencias del backend
+├── pt-manager/             # Frontend React
+│   ├── vercel.json         # Configuración del frontend
 │   └── package.json        # Dependencias del frontend
 └── vercel-build.sh         # Script de build personalizado
 ```
@@ -70,8 +75,8 @@ vercel --prod
 
 ### Backend API (Serverless Functions)
 - **Rutas**: `/api/*`
-- **Destino**: `pt-backend/src/index.js`
-- **Tipo**: Serverless Functions (más eficiente)
+- **Destino**: `/api/index.js` (directorio api/)
+- **Tipo**: Serverless Functions automáticas
 - **Ejemplos**:
   - `/api/auth/login`
   - `/api/tournaments`
@@ -85,27 +90,27 @@ vercel --prod
 
 ## ⚙️ Configuración Avanzada
 
-### Límites de Función (Backend)
-```json
-{
-  "functions": {
-    "pt-backend/src/index.js": {
-      "maxDuration": 30
-    }
-  }
-}
+### Estructura del Directorio API
+Vercel automáticamente detecta y despliega funciones serverless desde el directorio `api/`:
+
+```
+api/
+├── index.js                 # Función principal (/api/*)
+├── package.json             # Dependencias
+└── [otras-funciones].js    # Funciones adicionales si las necesitas
 ```
 
-### Builds (Frontend)
+### Rutas en vercel.json
 ```json
 {
-  "builds": [
+  "routes": [
     {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
+      "src": "/api/(.*)",
+      "dest": "/api/index.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "pt-manager/build/$1"
     }
   ]
 }
@@ -130,14 +135,14 @@ vercel --prod
 
 ## 🐛 Solución de Problemas
 
-### Error: "The functions property cannot be used in conjunction with the builds property"
-- ✅ **SOLUCIONADO**: El backend usa `functions` y el frontend usa `builds` en archivos separados
-- El archivo raíz `vercel.json` solo define `functions` para el backend
-- El archivo `pt-manager/vercel.json` solo define `builds` para el frontend
+### Error: "The pattern doesn't match any Serverless Functions inside the api directory"
+- ✅ **SOLUCIONADO**: Ahora usamos el directorio `api/` estándar de Vercel
+- El archivo `api/index.js` es detectado automáticamente
+- No necesitamos configurar `functions` manualmente
 
 ### Error: "Module not found"
-- Verifica que `pt-backend/package.json` esté en la raíz del proyecto
-- Asegúrate de que las dependencias estén instaladas
+- Verifica que `api/package.json` tenga las dependencias correctas
+- Asegúrate de que el script de build instale las dependencias en `api/`
 
 ### Error: "Build failed"
 - Revisa los logs de build en Vercel
@@ -146,7 +151,7 @@ vercel --prod
 
 ### Error: "API routes not working"
 - Verifica que las rutas en `vercel.json` estén correctas
-- Confirma que el backend esté configurado para el puerto correcto
+- Confirma que el archivo `api/index.js` esté bien configurado
 - Revisa los logs de función en Vercel
 
 ## 📱 URLs de Despliegue

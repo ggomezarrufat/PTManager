@@ -16,4 +16,11 @@ npm install
 npm run build
 cd ..
 
+# Crear enlaces simbólicos para el directorio api
+echo "🔗 Configurando directorio api..."
+cd api
+ln -sf ../pt-backend/node_modules node_modules
+ln -sf ../pt-backend/package.json package.json
+cd ..
+
 echo "✅ Build completado exitosamente!"

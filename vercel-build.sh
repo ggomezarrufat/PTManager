@@ -37,6 +37,14 @@ echo "✅ Build del frontend completado exitosamente!"
 # Volver al directorio raíz
 cd ..
 
+# Copiar el build del frontend al directorio raíz para Vercel
+echo "📁 Copiando build al directorio raíz..."
+cp -r pt-manager/build ./build
+if [ $? -ne 0 ]; then
+    echo "❌ Error: Falló la copia del directorio build"
+    exit 1
+fi
+
 # Instalar dependencias del backend
 echo "📦 Instalando dependencias del backend..."
 cd pt-backend
@@ -59,6 +67,6 @@ cd ..
 
 echo "✅ Build completado exitosamente!"
 echo "📁 Directorios creados:"
-echo "   - Frontend: pt-manager/build/"
+echo "   - Frontend: build/ (copiado desde pt-manager/build/)"
 echo "   - Backend: pt-backend/node_modules/"
 echo "   - API: api/node_modules/"

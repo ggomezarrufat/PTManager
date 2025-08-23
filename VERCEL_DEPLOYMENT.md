@@ -189,6 +189,11 @@ api/
 - Configuración actualizada para usar `rewrites` en lugar de `routes`
 - Compatibilidad con headers y otras características modernas de Vercel
 
+### Error: "No Output Directory named 'build' found after the Build completed"
+- ✅ **SOLUCIONADO**: Script de build actualizado para copiar archivos al directorio raíz
+- `outputDirectory` configurado como `"build"` (directorio raíz)
+- Script copia `pt-manager/build/` a `./build/` para Vercel
+
 ### Error: "Module not found"
 - Verifica que `api/package.json` tenga las dependencias correctas
 - Asegúrate de que el script de build instale las dependencias en `api/`

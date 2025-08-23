@@ -20,7 +20,7 @@
     }
   ],
   "buildCommand": "bash vercel-build.sh",
-  "outputDirectory": "pt-manager/build",
+  "outputDirectory": "build",
   "headers": [
     {
       "source": "/(.*)",

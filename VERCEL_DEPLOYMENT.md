@@ -125,17 +125,17 @@ api/
 └── [otras-funciones].js    # Funciones adicionales si las necesitas
 ```
 
-### Rutas en vercel.json
+### Configuración en vercel.json
 ```json
 {
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/index.js"
+      "source": "/api/(.*)",
+      "destination": "/api/index.js"
     },
     {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/((?!api|static|favicon.ico|manifest.json|logo192.png|logo512.png|robots.txt|service-worker.js).*)",
+      "destination": "/index.html"
     }
   ]
 }
@@ -183,6 +183,11 @@ api/
 - ✅ **SOLUCIONADO**: Configuración correcta de rutas SPA
 - Headers HTTP optimizados
 - Build local verificado exitosamente
+
+### Error: "If `rewrites`, `redirects`, `headers`, `cleanUrls` or `trailingSlash` are used, then `routes` cannot be present"
+- ✅ **SOLUCIONADO**: Migrado de `routes` a `rewrites` (sintaxis moderna de Vercel)
+- Configuración actualizada para usar `rewrites` en lugar de `routes`
+- Compatibilidad con headers y otras características modernas de Vercel
 
 ### Error: "Module not found"
 - Verifica que `api/package.json` tenga las dependencias correctas

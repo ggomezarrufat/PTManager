@@ -1,5 +1,12 @@
 // API Service - Centralized API calls for the frontend
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+export const API_BASE_URL = 'http://localhost:3001';
+
+// Debug: Log de la URL de la API
+console.log('🔍 API Service Debug:', {
+  REACT_APP_API_URL: process.env.REACT_APP_API_URL,
+  API_BASE_URL: API_BASE_URL,
+  NODE_ENV: process.env.NODE_ENV
+});
 
 // Custom error class for API errors
 export class ApiError extends Error {

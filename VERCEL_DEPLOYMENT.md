@@ -23,6 +23,9 @@ PTManager/
 │   └── package.json        # Dependencias del backend
 ├── pt-manager/             # Frontend React
 │   ├── vercel.json         # Configuración del frontend
+│   ├── public/
+│   │   ├── _redirects      # Manejo de rutas SPA
+│   │   └── _headers        # Headers HTTP personalizados
 │   └── package.json        # Dependencias del frontend
 └── vercel-build.sh         # Script de build personalizado
 ```
@@ -43,6 +46,28 @@ SUPABASE_ANON_KEY=tu_clave_anonima
 # JWT
 JWT_SECRET=tu_secreto_jwt
 ```
+
+## 🧪 Testing Local
+
+### Verificar Build Localmente
+```bash
+# En el directorio pt-manager
+npm install
+npm run build
+
+# Verificar que se creó el directorio build
+ls -la build/
+
+# Servir localmente para testing
+npx serve build -s -l 3000
+# O usar un servidor personalizado que maneje SPA correctamente
+```
+
+### Problemas Comunes y Soluciones
+- ✅ **Build exitoso**: El proyecto se construye correctamente
+- ✅ **Archivos estáticos**: Se sirven desde `/static/`
+- ✅ **Rutas SPA**: Todas las rutas redirigen a `index.html`
+- ✅ **Headers HTTP**: Configurados correctamente
 
 ## 🚀 Pasos de Despliegue
 
@@ -110,22 +135,31 @@ api/
     },
     {
       "src": "/(.*)",
-      "dest": "pt-manager/build/$1"
+      "dest": "/index.html"
     }
   ]
 }
 ```
 
-### Headers Personalizados
+### Headers HTTP Personalizados
 ```json
 {
   "headers": [
     {
-      "source": "/api/(.*)",
+      "source": "/(.*)",
       "headers": [
         {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
         }
       ]
     }
@@ -133,12 +167,22 @@ api/
 }
 ```
 
+### Archivos de Configuración Adicionales
+- **`_redirects`**: Maneja rutas SPA para Netlify
+- **`_headers`**: Configura headers HTTP personalizados
+- **`vercel-build.config.js`**: Configuración de build optimizada
+
 ## 🐛 Solución de Problemas
 
 ### Error: "The pattern doesn't match any Serverless Functions inside the api directory"
 - ✅ **SOLUCIONADO**: Ahora usamos el directorio `api/` estándar de Vercel
 - El archivo `api/index.js` es detectado automáticamente
 - No necesitamos configurar `functions` manualmente
+
+### Error: "Pantalla en blanco"
+- ✅ **SOLUCIONADO**: Configuración correcta de rutas SPA
+- Headers HTTP optimizados
+- Build local verificado exitosamente
 
 ### Error: "Module not found"
 - Verifica que `api/package.json` tenga las dependencias correctas

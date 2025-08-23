@@ -11,13 +11,13 @@
 ### 1. Estructura de Archivos
 ```
 PTManager/
-├── vercel.json              # Configuración principal de Vercel
+├── vercel.json              # Configuración principal (functions para backend)
 ├── pt-backend/
-│   ├── vercel.json         # Configuración específica del backend
+│   ├── vercel.json         # Configuración específica del backend (functions)
 │   └── src/
 │       └── index.js        # Punto de entrada del servidor
 ├── pt-manager/
-│   ├── vercel.json         # Configuración específica del frontend
+│   ├── vercel.json         # Configuración específica del frontend (builds)
 │   └── package.json        # Dependencias del frontend
 └── vercel-build.sh         # Script de build personalizado
 ```
@@ -68,22 +68,24 @@ vercel --prod
 
 ## 🔄 Configuración de Rutas
 
-### Backend API
+### Backend API (Serverless Functions)
 - **Rutas**: `/api/*`
 - **Destino**: `pt-backend/src/index.js`
+- **Tipo**: Serverless Functions (más eficiente)
 - **Ejemplos**:
   - `/api/auth/login`
   - `/api/tournaments`
   - `/api/users`
 
-### Frontend
+### Frontend (Static Build)
 - **Rutas**: `/*` (cualquier ruta que no sea `/api/*`)
 - **Destino**: `pt-manager/build`
+- **Tipo**: Static Build
 - **SPA**: Todas las rutas redirigen a `index.html`
 
 ## ⚙️ Configuración Avanzada
 
-### Límites de Función
+### Límites de Función (Backend)
 ```json
 {
   "functions": {
@@ -91,6 +93,21 @@ vercel --prod
       "maxDuration": 30
     }
   }
+}
+```
+
+### Builds (Frontend)
+```json
+{
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "build"
+      }
+    }
+  ]
 }
 ```
 
@@ -113,8 +130,13 @@ vercel --prod
 
 ## 🐛 Solución de Problemas
 
+### Error: "The functions property cannot be used in conjunction with the builds property"
+- ✅ **SOLUCIONADO**: El backend usa `functions` y el frontend usa `builds` en archivos separados
+- El archivo raíz `vercel.json` solo define `functions` para el backend
+- El archivo `pt-manager/vercel.json` solo define `builds` para el frontend
+
 ### Error: "Module not found"
-- Verifica que `pt-backend/package.json` esté incluido en el build
+- Verifica que `pt-backend/package.json` esté en la raíz del proyecto
 - Asegúrate de que las dependencias estén instaladas
 
 ### Error: "Build failed"

@@ -21,9 +21,7 @@ import {
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  Dashboard,
   Casino,
-  Assessment,
   AccountCircle,
   Logout,
   Settings,
@@ -33,7 +31,6 @@ import {
   People as PeopleIcon,
   Settings as SettingsIcon,
   Assessment as AssessmentIcon,
-  EmojiEvents as TrophyIcon,
   CalendarToday as CalendarIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';

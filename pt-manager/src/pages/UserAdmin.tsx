@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -62,16 +62,7 @@ const UserAdmin: React.FC = () => {
   // Verificar si el usuario actual es admin
   const isAdmin = user?.is_admin || false;
 
-  useEffect(() => {
-    if (!isAdmin) {
-      setError('No tienes permisos para acceder a esta página');
-      setLoading(false);
-      return;
-    }
-    loadUsers();
-  }, [isAdmin]);
-
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     try {
       console.log('👥 UserAdmin: Iniciando carga de usuarios...');
       setLoading(true);
@@ -99,7 +90,16 @@ const UserAdmin: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.email, user?.is_admin]);
+
+  useEffect(() => {
+    if (!isAdmin) {
+      setError('No tienes permisos para acceder a esta página');
+      setLoading(false);
+      return;
+    }
+    loadUsers();
+  }, [isAdmin, loadUsers]);
 
   const handleCreateUser = () => {
     setEditingUser(null);

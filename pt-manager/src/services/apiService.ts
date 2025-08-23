@@ -603,7 +603,7 @@ export {
 };
 
 // Export por defecto
-export default {
+const apiService = {
   auth: authService,
   users: userService,
   tournaments: tournamentService,
@@ -615,3 +615,5 @@ export default {
   reports: reportsService,
   seasons: seasonService,
 };
+
+export default apiService;

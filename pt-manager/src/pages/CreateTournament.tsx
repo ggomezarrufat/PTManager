@@ -8,8 +8,6 @@ import {
   Button,
   Grid,
   Alert,
-  Card,
-  CardContent,
   IconButton,
   Table,
   TableBody,
@@ -17,8 +15,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Switch,
-  FormControlLabel,
   FormControl,
   InputLabel,
   Select,
@@ -35,13 +31,13 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { es } from 'date-fns/locale';
 import { useTournamentStore } from '../store/tournamentStore';
 import { tournamentService } from '../services/apiService';
-import { BlindLevel, PointSystem } from '../types';
+import { BlindLevel } from '../types';
 import { seasonService } from '../services/apiService';
 import { Season } from '../types/seasons';
 
 const CreateTournament: React.FC = () => {
   const navigate = useNavigate();
-  const { createTournament, loading } = useTournamentStore();
+  const { loading } = useTournamentStore();
 
   // Estados del formulario
   const [name, setName] = useState('');
@@ -53,10 +49,8 @@ const CreateTournament: React.FC = () => {
   const [rebuyChips, setRebuyChips] = useState(1500);
   const [addonChips, setAddonChips] = useState(2000);
   const [maxRebuys, setMaxRebuys] = useState(3);
-  const [maxAddons, setMaxAddons] = useState(1);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | ''>('');
-
 
   // Estructura de blinds
   const [blindStructure, setBlindStructure] = useState<BlindLevel[]>([
@@ -66,21 +60,6 @@ const CreateTournament: React.FC = () => {
     { level: 4, small_blind: 50, big_blind: 100, duration_minutes: 15 },
     { level: 5, small_blind: 75, big_blind: 150, duration_minutes: 15 }
   ]);
-
-  // Sistema de puntos
-  const [pointSystem, setPointSystem] = useState<PointSystem>({
-    positions: {
-      1: 100,
-      2: 70,
-      3: 50,
-      4: 30,
-      5: 20,
-      6: 10,
-      7: 5,
-      8: 2
-    },
-    default_points: 1
-  });
 
   // Estados para errores
   const [error, setError] = useState<string | null>(null);
@@ -178,21 +157,19 @@ const CreateTournament: React.FC = () => {
     try {
       const tournamentData = {
         name: name.trim(),
-        description: description.trim() || undefined,
-        scheduled_start_time: scheduledStartTime.toISOString(),
+        description: description.trim(),
+        scheduled_start_time: scheduledStartTime?.toISOString(),
         max_players: maxPlayers,
         entry_fee: entryFee,
         initial_chips: initialChips,
         rebuy_chips: rebuyChips,
         addon_chips: addonChips,
         max_rebuys: maxRebuys,
-        max_addons: maxAddons,
         blind_structure: blindStructure,
-        point_system: pointSystem,
         season_id: selectedSeasonId || undefined
       };
 
-      const newTournament = await tournamentService.createTournament(tournamentData);
+      await tournamentService.createTournament(tournamentData);
       
       setSuccess('Torneo creado exitosamente');
       
@@ -204,13 +181,6 @@ const CreateTournament: React.FC = () => {
     } catch (err: any) {
       setError(err.message || 'Error al crear el torneo');
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    }).format(amount);
   };
 
   return (

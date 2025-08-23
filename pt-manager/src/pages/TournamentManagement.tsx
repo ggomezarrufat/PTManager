@@ -34,7 +34,6 @@ import { playerService, rebuyService, addonService } from '../services/apiServic
 import { getUserDisplayName } from '../utils/userUtils';
 import { isValidUUID } from '../utils/validation';
 import TournamentClock from '../components/tournament/TournamentClock';
-import { BlindLevel, TournamentPlayer } from '../types';
 
 const TournamentManagement: React.FC = () => {
   const { id } = useParams<{ id: string }>();

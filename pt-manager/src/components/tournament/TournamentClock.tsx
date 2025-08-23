@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -38,7 +38,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournament, clock }) 
     return isNaN(d.getTime()) ? null : d;
   };
 
-  const computeDerivedTime = (c: TournamentClockType | null): number => {
+  const computeDerivedTime = useCallback((c: TournamentClockType | null): number => {
     if (!c) return 0;
     if (c.is_paused || !c.last_updated) return c.time_remaining_seconds;
     const lastUpdatedDate = parseAsUtc(c.last_updated);
@@ -46,21 +46,21 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournament, clock }) 
       ? Math.floor((Date.now() - lastUpdatedDate.getTime()) / 1000)
       : 0;
     return Math.max(0, c.time_remaining_seconds - elapsed);
-  };
+  }, []);
 
   const [localTime, setLocalTime] = useState<number>(computeDerivedTime(clock));
   const [isRunning, setIsRunning] = useState<boolean>(!!clock && !clock.is_paused);
   const autoAdvanceTriggeredRef = useRef<boolean>(false);
 
-  // Sincronizar estado local con el reloj del servidor
+  // Efecto para sincronizar el reloj local con el backend
   useEffect(() => {
     if (clock) {
-      setLocalTime(computeDerivedTime(clock));
+      setLocalTime(clock.time_remaining_seconds);
       setIsRunning(!clock.is_paused);
       // Resetear trigger de auto-avance al cambiar el reloj/nivel
       autoAdvanceTriggeredRef.current = false;
     }
-  }, [clock]);
+  }, [clock, computeDerivedTime]);
 
   // Contador local para mostrar el tiempo en tiempo real
   useEffect(() => {
@@ -97,7 +97,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournament, clock }) 
     }
   };
 
-  const handleNextLevel = async () => {
+  const handleNextLevel = useCallback(async () => {
     if (!clock || !tournament.blind_structure) return;
 
     const nextLevel = clock.current_level + 1;
@@ -116,7 +116,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournament, clock }) 
         console.error('Error next level:', error);
       }
     }
-  };
+  }, [clock, tournament.blind_structure, tournament.id, loadClock]);
 
   const handlePrevLevel = async () => {
     if (!clock || !tournament.blind_structure) return;
@@ -234,7 +234,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournament, clock }) 
         }
       })();
     }
-  }, [localTime, isRunning]);
+  }, [localTime, isRunning, handleNextLevel]);
 
   if (!clock || !currentLevel) {
     return (

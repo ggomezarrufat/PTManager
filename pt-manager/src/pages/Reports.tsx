@@ -27,7 +27,7 @@ import {
   Delete as DeleteIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
-import { reportsService, tournamentService } from '../services/apiService';
+import { reportsService } from '../services/apiService';
 import { useTournamentStore } from '../store/tournamentStore';
 import { useAuthStore } from '../store/authStore';
 import { getUserDisplayName } from '../utils/userUtils';

@@ -33,7 +33,6 @@ import {
   Edit as EditIcon
 } from '@mui/icons-material';
 import { useTournamentStore } from '../store/tournamentStore';
-import { useAuthStore } from '../store/authStore';
 import { userService } from '../services/apiService';
 import { getUserDisplayName, getUserFullName } from '../utils/userUtils';
 import { isValidUUID } from '../utils/validation';
@@ -42,7 +41,6 @@ import { User, TournamentPlayer } from '../types';
 const PlayerManagement: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuthStore();
   const { 
     currentTournament, 
     players, 
@@ -58,7 +56,6 @@ const PlayerManagement: React.FC = () => {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [addPlayerDialogOpen, setAddPlayerDialogOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
-  const [entryFeePaid, setEntryFeePaid] = useState('');
   const [eliminationDialogOpen, setEliminationDialogOpen] = useState(false);
   const [selectedPlayerForElimination, setSelectedPlayerForElimination] = useState<TournamentPlayer | null>(null);
   const [eliminationPosition, setEliminationPosition] = useState(1);
@@ -108,7 +105,6 @@ const PlayerManagement: React.FC = () => {
       
       setAddPlayerDialogOpen(false);
       setSelectedUserId('');
-      setEntryFeePaid('');
     } catch (error) {
       console.error('Error agregando jugador:', error);
     }

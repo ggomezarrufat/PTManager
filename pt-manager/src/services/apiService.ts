@@ -24,7 +24,8 @@ console.log('🔍 API Service Debug:', {
   REACT_APP_API_URL: process.env.REACT_APP_API_URL,
   API_BASE_URL: API_BASE_URL,
   NODE_ENV: process.env.NODE_ENV,
-  window_origin: typeof window !== 'undefined' ? window.location.origin : 'N/A'
+  window_origin: typeof window !== 'undefined' ? window.location.origin : 'N/A',
+  isProduction: process.env.NODE_ENV === 'production'
 });
 
 // Custom error class for API errors
@@ -47,6 +48,17 @@ async function apiRequest<T>(
   const token = localStorage.getItem('authToken');
   const maxRetries = 3;
   let retryCount = 0;
+
+  // Debug de autenticación en producción
+  if (process.env.NODE_ENV === 'production') {
+    console.log('🔐 Production Auth Debug:', {
+      endpoint,
+      hasToken: !!token,
+      tokenPreview: token ? `${token.substring(0, 10)}...` : 'none',
+      API_BASE_URL,
+      window_origin: typeof window !== 'undefined' ? window.location.origin : 'N/A'
+    });
+  }
 
   const config: RequestInit = {
     headers: {
@@ -88,9 +100,23 @@ async function apiRequest<T>(
       if (!response.ok) {
         // Intentar refresh en 401 y reintentar una vez
         if (response.status === 401 && !(options as any)._retried) {
+          if (process.env.NODE_ENV === 'production') {
+            console.log('🔒 Production 401 Error:', {
+              endpoint,
+              currentToken: localStorage.getItem('authToken') ? 'exists' : 'missing',
+              attemptingRefresh: true
+            });
+          }
+          
           const refreshed = await tryRefreshToken();
           if (refreshed) {
             const token = localStorage.getItem('authToken');
+            if (process.env.NODE_ENV === 'production') {
+              console.log('🔄 Token refreshed successfully:', {
+                newToken: token ? 'exists' : 'missing'
+              });
+            }
+            
             const retryConfig: RequestInit = {
               ...config,
               headers: {
@@ -99,6 +125,13 @@ async function apiRequest<T>(
               }
             };
             response = await fetch(`${API_BASE_URL}${endpoint}`, { ...retryConfig, _retried: true } as any);
+          } else {
+            if (process.env.NODE_ENV === 'production') {
+              console.log('❌ Token refresh failed, clearing auth state');
+            }
+            // Limpiar tokens inválidos
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('refreshToken');
           }
         }
 
@@ -171,6 +204,17 @@ const authService = {
 
     if (response.session?.access_token) {
       localStorage.setItem('authToken', response.session.access_token);
+      if (process.env.NODE_ENV === 'production') {
+        console.log('🔐 Production Login Success:', {
+          hasAccessToken: !!response.session.access_token,
+          hasRefreshToken: !!response.session.refresh_token,
+          tokenPreview: response.session.access_token ? `${response.session.access_token.substring(0, 10)}...` : 'none'
+        });
+      }
+    } else {
+      if (process.env.NODE_ENV === 'production') {
+        console.error('❌ Production Login Error: No access token in response');
+      }
     }
 
     return response;
@@ -193,6 +237,16 @@ const authService = {
 
     if (response.token) {
       localStorage.setItem('authToken', response.token);
+      if (process.env.NODE_ENV === 'production') {
+        console.log('🔐 Production Register Success:', {
+          hasToken: !!response.token,
+          tokenPreview: response.token ? `${response.token.substring(0, 10)}...` : 'none'
+        });
+      }
+    } else {
+      if (process.env.NODE_ENV === 'production') {
+        console.error('❌ Production Register Error: No token in response');
+      }
     }
 
     return response;
@@ -209,7 +263,14 @@ const authService = {
   },
 
   isAuthenticated() {
-    return !!localStorage.getItem('authToken');
+    const token = localStorage.getItem('authToken');
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🔍 Production Auth Check:', {
+        hasToken: !!token,
+        tokenPreview: token ? `${token.substring(0, 10)}...` : 'none'
+      });
+    }
+    return !!token;
   },
 };
 

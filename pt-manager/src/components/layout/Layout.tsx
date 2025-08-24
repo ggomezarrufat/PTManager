@@ -21,7 +21,6 @@ import {
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  Casino,
   AccountCircle,
   Logout,
   Settings,

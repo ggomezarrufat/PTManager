@@ -275,9 +275,7 @@ const UserAdmin: React.FC = () => {
   return (
     <Box sx={{ 
       p: { xs: 2, md: 3 },
-      minHeight: '100vh',
-      display: 'flex',
-      flexDirection: 'column'
+      pb: { xs: 8, md: 3 } // Espacio para bottom navigation en móvil
     }}>
       {/* Header */}
       <Box sx={{ 
@@ -341,7 +339,10 @@ const UserAdmin: React.FC = () => {
       </Card>
 
       {/* Contenido principal */}
-      <Box sx={{ flex: 1, overflow: 'auto' }}>
+      <Box sx={{ 
+        flex: 1, 
+        overflow: 'auto'
+      }}>
         {filteredUsers.length === 0 ? (
           <Card sx={{ textAlign: 'center', py: 4 }}>
             <CardContent>
@@ -626,34 +627,62 @@ const UserAdmin: React.FC = () => {
         open={deleteDialogOpen} 
         onClose={() => setDeleteDialogOpen(false)}
         maxWidth="sm"
-        fullScreen={isMobile}
+        fullWidth={isMobile}
+        fullScreen={false}
+        sx={{
+          '& .MuiDialog-paper': {
+            margin: isMobile ? '16px' : 'auto',
+            borderRadius: 2,
+            maxHeight: isMobile ? 'calc(100vh - 32px)' : '90vh',
+            width: isMobile ? 'calc(100vw - 32px)' : 'auto',
+          }
+        }}
       >
         <DialogTitle sx={{ 
           pb: 1,
           background: 'linear-gradient(135deg, #f44336 0%, #d32f2f 100%)',
-          color: 'white'
+          color: 'white',
+          position: 'sticky',
+          top: 0,
+          zIndex: 1
         }}>
           Confirmar Eliminación
         </DialogTitle>
         
-        <DialogContent sx={{ pt: 3 }}>
-          <Alert severity="warning" sx={{ mb: 2 }}>
+        <DialogContent sx={{ 
+          pt: isMobile ? 2 : 3,
+          pb: isMobile ? 1 : 2,
+          flex: 1,
+          overflow: 'visible',
+          minHeight: isMobile ? 'auto' : 'unset'
+        }}>
+          <Alert severity="warning" sx={{ mb: isMobile ? 1 : 2 }}>
             Esta acción no se puede deshacer.
           </Alert>
-          <Typography variant="body1" sx={{ mb: 2 }}>
+          <Typography variant="body1" sx={{ mb: isMobile ? 1 : 2 }}>
             ¿Estás seguro de que quieres eliminar al usuario{' '}
             <strong>{userToDelete ? getUserDisplayName(userToDelete) : ''}</strong>?
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="text.secondary" sx={{ mb: isMobile ? 1 : 0 }}>
             Se eliminarán todos los datos asociados incluyendo participaciones en torneos.
           </Typography>
         </DialogContent>
         
         <DialogActions sx={{ 
-          p: 3,
-          pt: 1,
+          p: isMobile ? 1.5 : 3,
+          pt: isMobile ? 1 : 1,
           flexDirection: { xs: 'column', sm: 'row' },
-          gap: 1
+          gap: isMobile ? 1 : 2,
+          position: 'static',
+          backgroundColor: 'background.paper',
+          borderTop: isMobile ? '1px solid' : 'none',
+          borderColor: 'divider',
+          justifyContent: 'center',
+          '& .MuiButton-root': {
+            minHeight: isMobile ? '44px' : '36px',
+            fontSize: isMobile ? '0.9rem' : '0.875rem',
+            fontWeight: 600
+          }
         }}>
           <Button 
             onClick={() => setDeleteDialogOpen(false)}
@@ -661,6 +690,13 @@ const UserAdmin: React.FC = () => {
             variant="outlined"
             fullWidth={isMobile}
             size={isMobile ? "large" : "medium"}
+            sx={{
+              borderWidth: 2,
+              '&:hover': {
+                borderWidth: 2,
+                backgroundColor: 'rgba(0,0,0,0.04)'
+              }
+            }}
           >
             Cancelar
           </Button>
@@ -674,8 +710,10 @@ const UserAdmin: React.FC = () => {
             startIcon={deleteLoading ? <CircularProgress size={20} /> : <DeleteIcon />}
             sx={{
               background: 'linear-gradient(135deg, #f44336 0%, #d32f2f 100%)',
+              boxShadow: '0 4px 12px rgba(244, 67, 54, 0.3)',
               '&:hover': {
                 background: 'linear-gradient(135deg, #d32f2f 0%, #c62828 100%)',
+                boxShadow: '0 6px 16px rgba(244, 67, 54, 0.4)',
               }
             }}
           >

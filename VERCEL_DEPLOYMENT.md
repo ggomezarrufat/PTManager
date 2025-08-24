@@ -194,6 +194,12 @@ api/
 - `outputDirectory` configurado como `"build"` (directorio raíz)
 - Script copia `pt-manager/build/` a `./build/` para Vercel
 
+### Error: "Due to `builds` existing in your configuration file, the Build and Development Settings defined in your Project Settings will not apply"
+- ✅ **SOLUCIONADO**: Eliminada la propiedad `builds` del vercel.json
+- Agregado `package.json` en la raíz para configuración del monorepo
+- Configurado `installCommand` para evitar instalación automática en raíz
+- Script de build mejorado con mejor logging y manejo de errores
+
 ### Error: "Module not found"
 - Verifica que `api/package.json` tenga las dependencias correctas
 - Asegúrate de que el script de build instale las dependencias en `api/`

@@ -1,14 +1,7 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "pt-manager/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "pt-manager/build"
-      }
-    }
-  ],
+  "buildCommand": "bash vercel-build.sh",
+  "outputDirectory": "build",
+  "installCommand": "echo 'Skipping root install, using custom build script'",
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -19,8 +12,6 @@
       "destination": "/index.html"
     }
   ],
-  "buildCommand": "bash vercel-build.sh",
-  "outputDirectory": "build",
   "headers": [
     {
       "source": "/(.*)",

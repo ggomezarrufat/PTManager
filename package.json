@@ -1,0 +1,23 @@
+{
+  "name": "ptmanager-monorepo",
+  "version": "1.0.0",
+  "description": "Poker Tournament Manager - Full Stack Application",
+  "scripts": {
+    "build": "bash vercel-build.sh",
+    "start": "echo 'This is a monorepo. Use npm start in pt-manager/ or pt-backend/'",
+    "dev:frontend": "cd pt-manager && npm start",
+    "dev:backend": "cd pt-backend && npm run dev"
+  },
+  "keywords": ["poker", "tournament", "manager", "react", "node"],
+  "author": "Gustavo Gomez Arrufat",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "workspaces": [
+    "pt-manager",
+    "pt-backend",
+    "api"
+  ]
+}

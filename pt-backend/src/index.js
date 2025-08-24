@@ -41,13 +41,29 @@ app.options('*', cors(corsOptions));
 // Security middleware
 app.use(helmet());
 
-// Rate limiting
+// Rate limiting - más permisivo en desarrollo
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // 1000 requests en desarrollo, 100 en producción
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip rate limiting for health checks
+  skip: (req) => req.path === '/health'
 });
+
+// Rate limiting específico para autenticación - más permisivo
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: process.env.NODE_ENV === 'production' ? 20 : 100, // 100 intentos en desarrollo, 20 en producción
+  message: 'Demasiados intentos de autenticación. Intenta de nuevo en unos minutos.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true // No contar requests exitosos
+});
+
 app.use(limiter);
+app.use('/api/auth', authLimiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -68,6 +84,20 @@ app.get('/health', (req, res) => {
     version: require('../package.json').version
   });
 });
+
+// Rate limit reset endpoint (solo en desarrollo)
+if (process.env.NODE_ENV !== 'production') {
+  app.post('/reset-rate-limit', (req, res) => {
+    // Reset rate limiters
+    limiter.resetKey(req.ip);
+    authLimiter.resetKey(req.ip);
+    
+    res.status(200).json({
+      message: 'Rate limits reset successfully',
+      timestamp: new Date().toISOString()
+    });
+  });
+}
 
 
 

@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
-  Paper,
   Typography,
   Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
+  Card,
+  CardContent,
+  Grid,
+  Alert,
+  CircularProgress,
+  IconButton,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -17,18 +16,21 @@ import {
   TextField,
   FormControlLabel,
   Switch,
-  Alert,
-  CircularProgress,
-  IconButton,
   Chip,
-  Tooltip
+  useTheme,
+  useMediaQuery,
+  Fab,
+  Stack,
+  Avatar,
+  InputAdornment
 } from '@mui/material';
 import {
   Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   Person as PersonIcon,
-  AdminPanelSettings as AdminIcon
+  AdminPanelSettings as AdminIcon,
+  Search as SearchIcon
 } from '@mui/icons-material';
 import { useAuthStore } from '../store/authStore';
 import { userService, ApiError } from '../services/apiService';
@@ -36,10 +38,14 @@ import { User } from '../types';
 import { getUserDisplayName, getUserFullName } from '../utils/userUtils';
 
 const UserAdmin: React.FC = () => {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { user } = useAuthStore();
   const [users, setUsers] = useState<User[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Estados para el diálogo de usuario
   const [userDialogOpen, setUserDialogOpen] = useState(false);
@@ -78,7 +84,9 @@ const UserAdmin: React.FC = () => {
       });
 
       console.log('✅ UserAdmin: Usuarios cargados exitosamente:', response.users?.length || 0);
-      setUsers(response.users || []);
+      const usersList = response.users || [];
+      setUsers(usersList);
+      setFilteredUsers(usersList);
     } catch (err: unknown) {
       console.error('❌ UserAdmin: Error inesperado:', err);
       const errorMessage = err instanceof ApiError 
@@ -91,6 +99,25 @@ const UserAdmin: React.FC = () => {
       setLoading(false);
     }
   }, [user?.email, user?.is_admin]);
+
+  // Filtrar usuarios basado en el término de búsqueda
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredUsers(users);
+      return;
+    }
+
+    const filtered = users.filter(userData => {
+      const searchLower = searchTerm.toLowerCase();
+      return (
+        getUserDisplayName(userData).toLowerCase().includes(searchLower) ||
+        getUserFullName(userData).toLowerCase().includes(searchLower) ||
+        userData.email.toLowerCase().includes(searchLower) ||
+        (userData.nickname && userData.nickname.toLowerCase().includes(searchLower))
+      );
+    });
+    setFilteredUsers(filtered);
+  }, [searchTerm, users]);
 
   useEffect(() => {
     if (!isAdmin) {
@@ -229,7 +256,7 @@ const UserAdmin: React.FC = () => {
 
   if (!isAdmin) {
     return (
-      <Box p={3}>
+      <Box sx={{ p: { xs: 2, md: 3 } }}>
         <Alert severity="error">
           No tienes permisos para acceder a la administración de usuarios.
         </Alert>
@@ -246,105 +273,230 @@ const UserAdmin: React.FC = () => {
   }
 
   return (
-    <Box p={3}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" component="h1">
+    <Box sx={{ 
+      p: { xs: 2, md: 3 },
+      minHeight: '100vh',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      {/* Header */}
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: { xs: 'column', sm: 'row' },
+        justifyContent: 'space-between', 
+        alignItems: { xs: 'flex-start', sm: 'center' }, 
+        mb: 3,
+        gap: 2
+      }}>
+        <Typography 
+          variant={isMobile ? "h5" : "h4"} 
+          component="h1"
+          sx={{ fontWeight: 700 }}
+        >
           Administración de Usuarios
         </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={handleCreateUser}
-        >
-          Crear Usuario
-        </Button>
+        
+        {!isMobile && (
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleCreateUser}
+            size="large"
+          >
+            Crear Usuario
+          </Button>
+        )}
       </Box>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
 
-      <TableContainer component={Paper}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>Usuario</TableCell>
-              <TableCell>Email</TableCell>
-              <TableCell>Tipo</TableCell>
-              <TableCell>Puntos</TableCell>
-              <TableCell>Creado</TableCell>
-              <TableCell align="center">Acciones</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {users.map((userData) => (
-              <TableRow key={userData.id}>
-                <TableCell>
-                  <Box>
-                    <Typography variant="body1" fontWeight="medium">
-                      {getUserDisplayName(userData)}
-                    </Typography>
-                    {userData.nickname && userData.name !== userData.nickname && (
-                      <Typography variant="body2" color="text.secondary">
-                        {getUserFullName(userData)}
-                      </Typography>
-                    )}
-                  </Box>
-                </TableCell>
-                <TableCell>{userData.email}</TableCell>
-                <TableCell>
-                  {userData.is_admin ? (
-                    <Chip 
-                      icon={<AdminIcon />} 
-                      label="Admin" 
-                      color="primary" 
-                      size="small" 
-                    />
-                  ) : (
-                    <Chip 
-                      icon={<PersonIcon />} 
-                      label="Usuario" 
-                      variant="outlined" 
-                      size="small" 
-                    />
-                  )}
-                </TableCell>
-                <TableCell>{userData.total_points}</TableCell>
-                <TableCell>
-                  {new Date(userData.created_at).toLocaleDateString()}
-                </TableCell>
-                <TableCell align="center">
-                  <Tooltip title="Editar">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleEditUser(userData)}
-                    >
-                      <EditIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title={userData.id === user?.id ? "No puedes eliminarte a ti mismo" : "Eliminar"}>
-                    <span>
+      {/* Buscador */}
+      <Card sx={{ mb: 3 }}>
+        <CardContent sx={{ p: 2 }}>
+          <TextField
+            fullWidth
+            placeholder="Buscar usuarios por nombre, nickname o email..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon color="action" />
+                </InputAdornment>
+              ),
+            }}
+            variant="outlined"
+            size={isMobile ? "medium" : "small"}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                borderRadius: 2,
+              }
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Contenido principal */}
+      <Box sx={{ flex: 1, overflow: 'auto' }}>
+        {filteredUsers.length === 0 ? (
+          <Card sx={{ textAlign: 'center', py: 4 }}>
+            <CardContent>
+              {searchTerm ? (
+                <>
+                  <SearchIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    No se encontraron usuarios
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    No hay usuarios que coincidan con "{searchTerm}"
+                  </Typography>
+                </>
+              ) : (
+                <>
+                  <PersonIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                  <Typography variant="h6" color="text.secondary" gutterBottom>
+                    No hay usuarios registrados
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Comienza creando el primer usuario del sistema
+                  </Typography>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <Grid container spacing={2}>
+            {filteredUsers.map((userData) => (
+              <Grid size={{xs: 12, sm: 6, md: 4}} key={userData.id}>
+                <Card 
+                  sx={{ 
+                    height: '100%',
+                    transition: 'all 0.2s ease-in-out',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: theme.shadows[8]
+                    }
+                  }}
+                >
+                  <CardContent sx={{ p: 3 }}>
+                    {/* Header del usuario */}
+                    <Box sx={{ mb: 2 }}>
+                      <Box display="flex" alignItems="center" gap={2} mb={1}>
+                        <Avatar sx={{ 
+                          bgcolor: userData.is_admin ? 'primary.main' : 'grey.500',
+                          width: 48,
+                          height: 48
+                        }}>
+                          {getUserDisplayName(userData).charAt(0)}
+                        </Avatar>
+                        <Box>
+                          <Typography variant="h6" component="h3" sx={{ fontWeight: 600 }}>
+                            {getUserDisplayName(userData)}
+                          </Typography>
+                          {userData.nickname && userData.name !== userData.nickname && (
+                            <Typography variant="body2" color="text.secondary">
+                              {getUserDisplayName(userData)}
+                            </Typography>
+                          )}
+                        </Box>
+                      </Box>
+                      
+                      <Box display="flex" gap={1} flexWrap="wrap">
+                        {userData.is_admin ? (
+                          <Chip 
+                            icon={<AdminIcon />} 
+                            label="Admin" 
+                            color="primary" 
+                            size="small"
+                            sx={{ fontWeight: 600 }}
+                          />
+                        ) : (
+                          <Chip 
+                            icon={<PersonIcon />} 
+                            label="Usuario" 
+                            variant="outlined" 
+                            size="small"
+                            sx={{ fontWeight: 600 }}
+                          />
+                        )}
+                      </Box>
+                    </Box>
+
+                    {/* Acciones */}
+                    <Box sx={{ 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      mt: 2,
+                      pt: 2,
+                      borderTop: '1px solid',
+                      borderColor: 'divider'
+                    }}>
                       <IconButton
+                        aria-label="editar usuario"
+                        onClick={() => handleEditUser(userData)}
                         size="small"
-                        color="error"
+                        sx={{ 
+                          backgroundColor: 'primary.light',
+                          color: 'primary.contrastText',
+                          '&:hover': {
+                            backgroundColor: 'primary.main'
+                          }
+                        }}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      
+                      <IconButton
+                        aria-label="eliminar usuario"
                         onClick={() => {
                           setUserToDelete(userData);
                           setDeleteDialogOpen(true);
                         }}
-                        disabled={userData.id === user?.id} // No permitir eliminar a sí mismo
+                        disabled={userData.id === user?.id}
+                        size="small"
+                        sx={{ 
+                          backgroundColor: 'error.light',
+                          color: 'error.contrastText',
+                          '&:hover': {
+                            backgroundColor: 'error.main'
+                          }
+                        }}
                       >
-                        <DeleteIcon />
+                        <DeleteIcon fontSize="small" />
                       </IconButton>
-                    </span>
-                  </Tooltip>
-                </TableCell>
-              </TableRow>
+                    </Box>
+                  </CardContent>
+                </Card>
+              </Grid>
             ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
+          </Grid>
+        )}
+      </Box>
+
+      {/* FAB para móviles */}
+      {isMobile && (
+        <Fab
+          color="primary"
+          aria-label="crear usuario"
+          onClick={handleCreateUser}
+          sx={{
+            position: 'fixed',
+            bottom: 90, // Encima de la bottom navigation
+            right: 16,
+            zIndex: 1000,
+            background: 'linear-gradient(135deg, #ff4757 0%, #ff3742 100%)',
+            '&:hover': {
+              background: 'linear-gradient(135deg, #ff3742 0%, #ff2f3a 100%)',
+            }
+          }}
+        >
+          <AddIcon />
+        </Fab>
+      )}
 
       {/* Diálogo para crear/editar usuario */}
       <Dialog 
@@ -352,18 +504,24 @@ const UserAdmin: React.FC = () => {
         onClose={() => setUserDialogOpen(false)}
         maxWidth="sm"
         fullWidth
+        fullScreen={isMobile}
       >
-        <DialogTitle>
+        <DialogTitle sx={{ 
+          pb: 1,
+          background: 'linear-gradient(135deg, #ff4757 0%, #ff3742 100%)',
+          color: 'white'
+        }}>
           {editingUser ? 'Editar Usuario' : 'Crear Nuevo Usuario'}
         </DialogTitle>
-        <DialogContent>
+        
+        <DialogContent sx={{ pt: 3 }}>
           {userFormError && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {userFormError}
             </Alert>
           )}
           
-          <Box display="flex" flexDirection="column" gap={3} mt={1}>
+          <Stack spacing={3}>
             <TextField
               label="Email"
               type="email"
@@ -371,7 +529,9 @@ const UserAdmin: React.FC = () => {
               onChange={(e) => setUserForm({ ...userForm, email: e.target.value })}
               fullWidth
               required
-              disabled={userFormLoading || !!editingUser} // No permitir cambiar email en edición
+              disabled={userFormLoading || !!editingUser}
+              variant="outlined"
+              size={isMobile ? "medium" : "small"}
             />
             
             <TextField
@@ -381,6 +541,8 @@ const UserAdmin: React.FC = () => {
               fullWidth
               required
               disabled={userFormLoading}
+              variant="outlined"
+              size={isMobile ? "medium" : "small"}
             />
             
             <TextField
@@ -389,6 +551,8 @@ const UserAdmin: React.FC = () => {
               onChange={(e) => setUserForm({ ...userForm, nickname: e.target.value })}
               fullWidth
               disabled={userFormLoading}
+              variant="outlined"
+              size={isMobile ? "small" : "small"}
               helperText="Nombre que se mostrará en la interfaz"
             />
             
@@ -400,6 +564,8 @@ const UserAdmin: React.FC = () => {
               fullWidth
               required={!editingUser}
               disabled={userFormLoading || !!editingUser}
+              variant="outlined"
+              size={isMobile ? "medium" : "small"}
               helperText={editingUser ? 'Para cambiar contraseñas, usar "Olvidé mi contraseña"' : 'Mínimo 6 caracteres'}
             />
 
@@ -413,12 +579,21 @@ const UserAdmin: React.FC = () => {
               }
               label="Permisos de Administrador"
             />
-          </Box>
+          </Stack>
         </DialogContent>
-        <DialogActions>
+        
+        <DialogActions sx={{ 
+          p: 3,
+          pt: 1,
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 1
+        }}>
           <Button 
             onClick={() => setUserDialogOpen(false)}
             disabled={userFormLoading}
+            variant="outlined"
+            fullWidth={isMobile}
+            size={isMobile ? "large" : "medium"}
           >
             Cancelar
           </Button>
@@ -431,7 +606,15 @@ const UserAdmin: React.FC = () => {
               (!editingUser && !userForm.password) ||
               userFormLoading
             }
+            fullWidth={isMobile}
+            size={isMobile ? "large" : "medium"}
             startIcon={userFormLoading ? <CircularProgress size={20} /> : null}
+            sx={{
+              background: 'linear-gradient(135deg, #ff4757 0%, #ff3742 100%)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #ff3742 0%, #ff2f3a 100%)',
+              }
+            }}
           >
             {userFormLoading ? 'Guardando...' : (editingUser ? 'Actualizar' : 'Crear')}
           </Button>
@@ -443,24 +626,41 @@ const UserAdmin: React.FC = () => {
         open={deleteDialogOpen} 
         onClose={() => setDeleteDialogOpen(false)}
         maxWidth="sm"
+        fullScreen={isMobile}
       >
-        <DialogTitle>Confirmar Eliminación</DialogTitle>
-        <DialogContent>
+        <DialogTitle sx={{ 
+          pb: 1,
+          background: 'linear-gradient(135deg, #f44336 0%, #d32f2f 100%)',
+          color: 'white'
+        }}>
+          Confirmar Eliminación
+        </DialogTitle>
+        
+        <DialogContent sx={{ pt: 3 }}>
           <Alert severity="warning" sx={{ mb: 2 }}>
             Esta acción no se puede deshacer.
           </Alert>
-          <Typography>
+          <Typography variant="body1" sx={{ mb: 2 }}>
             ¿Estás seguro de que quieres eliminar al usuario{' '}
             <strong>{userToDelete ? getUserDisplayName(userToDelete) : ''}</strong>?
           </Typography>
-          <Typography variant="body2" color="text.secondary" mt={1}>
+          <Typography variant="body2" color="text.secondary">
             Se eliminarán todos los datos asociados incluyendo participaciones en torneos.
           </Typography>
         </DialogContent>
-        <DialogActions>
+        
+        <DialogActions sx={{ 
+          p: 3,
+          pt: 1,
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 1
+        }}>
           <Button 
             onClick={() => setDeleteDialogOpen(false)}
             disabled={deleteLoading}
+            variant="outlined"
+            fullWidth={isMobile}
+            size={isMobile ? "large" : "medium"}
           >
             Cancelar
           </Button>
@@ -469,7 +669,15 @@ const UserAdmin: React.FC = () => {
             color="error"
             variant="contained"
             disabled={deleteLoading}
+            fullWidth={isMobile}
+            size={isMobile ? "large" : "medium"}
             startIcon={deleteLoading ? <CircularProgress size={20} /> : <DeleteIcon />}
+            sx={{
+              background: 'linear-gradient(135deg, #f44336 0%, #d32f2f 100%)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #d32f2f 0%, #c62828 100%)',
+              }
+            }}
           >
             {deleteLoading ? 'Eliminando...' : 'Eliminar'}
           </Button>

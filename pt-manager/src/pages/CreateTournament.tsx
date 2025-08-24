@@ -23,7 +23,9 @@ import {
 import {
   ArrowBack as ArrowBackIcon,
   Add as AddIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  FileDownload as FileDownloadIcon,
+  FileUpload as FileUploadIcon
 } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -51,6 +53,13 @@ const CreateTournament: React.FC = () => {
   const [maxRebuys, setMaxRebuys] = useState(3);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | ''>('');
+  
+  // Sistema de puntos (por defecto: 1er lugar = 100, 2do = 50, 3ro = 25)
+  const [pointSystem, setPointSystem] = useState([
+    { position: 1, points: 100 },
+    { position: 2, points: 50 },
+    { position: 3, points: 25 }
+  ]);
 
   // Estructura de blinds
   const [blindStructure, setBlindStructure] = useState<BlindLevel[]>([
@@ -64,6 +73,9 @@ const CreateTournament: React.FC = () => {
   // Estados para errores
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Referencia para el input file oculto
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadSeasons();
@@ -104,6 +116,99 @@ const CreateTournament: React.FC = () => {
     const newStructure = [...blindStructure];
     newStructure[index] = { ...newStructure[index], [field]: value };
     setBlindStructure(newStructure);
+  };
+
+  // Función para exportar la estructura de blinds a JSON
+  const handleExportBlinds = () => {
+    const exportData = {
+      tournament_name: name || 'Nuevo Torneo',
+      export_date: new Date().toISOString(),
+      blind_structure: blindStructure,
+      point_system: pointSystem,
+      tournament_config: {
+        initial_chips: initialChips,
+        rebuy_chips: rebuyChips,
+        addon_chips: addonChips,
+        max_rebuys: maxRebuys
+      }
+    };
+
+    const dataStr = JSON.stringify(exportData, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `estructura_blinds_${name || 'torneo'}_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setSuccess('Estructura de blinds exportada exitosamente');
+  };
+
+  // Función para importar estructura de blinds desde JSON
+  const handleImportBlinds = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const importData = JSON.parse(content);
+
+        // Validar que el archivo tenga la estructura correcta
+        if (!importData.blind_structure || !Array.isArray(importData.blind_structure)) {
+          setError('El archivo no contiene una estructura de blinds válida');
+          return;
+        }
+
+        // Validar cada nivel de blind
+        for (let i = 0; i < importData.blind_structure.length; i++) {
+          const level = importData.blind_structure[i];
+          if (!level.level || !level.small_blind || !level.big_blind || !level.duration_minutes) {
+            setError(`Nivel ${i + 1}: Estructura incompleta o inválida`);
+            return;
+          }
+        }
+
+        // Aplicar la estructura importada
+        setBlindStructure(importData.blind_structure);
+
+        // Aplicar sistema de puntos si está disponible
+        if (importData.point_system && Array.isArray(importData.point_system)) {
+          setPointSystem(importData.point_system);
+        }
+
+        // Aplicar configuración del torneo si está disponible
+        if (importData.tournament_config) {
+          if (importData.tournament_config.initial_chips) setInitialChips(importData.tournament_config.initial_chips);
+          if (importData.tournament_config.rebuy_chips) setRebuyChips(importData.tournament_config.rebuy_chips);
+          if (importData.tournament_config.addon_chips) setAddonChips(importData.tournament_config.addon_chips);
+          if (importData.tournament_config.max_rebuys) setMaxRebuys(importData.tournament_config.max_rebuys);
+        }
+
+        setSuccess(`Estructura de blinds importada exitosamente (${importData.blind_structure.length} niveles)`);
+        
+        // Limpiar el input file
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+
+      } catch (error) {
+        setError('Error al leer el archivo JSON. Verifica que el formato sea correcto.');
+        console.error('Error parsing JSON:', error);
+      }
+    };
+
+    reader.readAsText(file);
+  };
+
+  // Función para abrir el selector de archivos
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -154,6 +259,24 @@ const CreateTournament: React.FC = () => {
       }
     }
 
+    // Validar sistema de puntos
+    if (pointSystem.length === 0) {
+      setError('Debe configurar al menos un nivel de puntos');
+      return;
+    }
+    
+    for (let i = 0; i < pointSystem.length; i++) {
+      const point = pointSystem[i];
+      if (point.points < 0) {
+        setError(`Posición ${i + 1}: Los puntos no pueden ser negativos`);
+        return;
+      }
+      if (point.position !== i + 1) {
+        setError(`Posición ${i + 1}: Las posiciones deben ser consecutivas`);
+        return;
+      }
+    }
+
     try {
       const tournamentData = {
         name: name.trim(),
@@ -166,6 +289,7 @@ const CreateTournament: React.FC = () => {
         addon_chips: addonChips,
         max_rebuys: maxRebuys,
         blind_structure: blindStructure,
+        point_system: pointSystem,
         season_id: selectedSeasonId || undefined
       };
 
@@ -352,24 +476,119 @@ const CreateTournament: React.FC = () => {
                       inputProps={{ min: 0 }}
                     />
                   </Grid>
-                </Grid>
-              </Paper>
-            </Grid>
+                            </Grid>
+          </Paper>
+        </Grid>
 
-            {/* Estructura de blinds */}
+        {/* Sistema de puntos */}
+        <Grid size={12}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom>
+              Sistema de Puntos
+            </Typography>
+            
+            <Typography variant="body2" color="text.secondary" mb={2}>
+              Define los puntos que recibirán los jugadores según su posición final
+            </Typography>
+            
+            <Box display="flex" flexWrap="wrap" gap={2}>
+              {pointSystem.map((point, index) => (
+                <Box key={index} display="flex" alignItems="center" gap={1}>
+                  <Typography variant="body2" sx={{ minWidth: '60px' }}>
+                    {point.position}º lugar:
+                  </Typography>
+                  <TextField
+                    type="number"
+                    value={point.points}
+                    onChange={(e) => {
+                      const newPoints = [...pointSystem];
+                      newPoints[index].points = parseInt(e.target.value) || 0;
+                      setPointSystem(newPoints);
+                    }}
+                    size="small"
+                    sx={{ width: '80px' }}
+                    inputProps={{ min: 0 }}
+                  />
+                  <Typography variant="body2" color="text.secondary">
+                    puntos
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+            
+            <Box mt={2}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => {
+                  if (pointSystem.length < 10) {
+                    setPointSystem([...pointSystem, { 
+                      position: pointSystem.length + 1, 
+                      points: Math.max(1, Math.floor(pointSystem[pointSystem.length - 1]?.points * 0.5) || 10) 
+                    }]);
+                  }
+                }}
+                disabled={pointSystem.length >= 10}
+              >
+                Agregar Posición
+              </Button>
+              {pointSystem.length > 3 && (
+                <Button
+                  variant="outlined"
+                  color="error"
+                  size="small"
+                  onClick={() => setPointSystem(pointSystem.slice(0, -1))}
+                  sx={{ ml: 1 }}
+                >
+                  Quitar Última
+                </Button>
+              )}
+            </Box>
+          </Paper>
+        </Grid>
+
+        {/* Estructura de blinds */}
             <Grid size={12}>
               <Paper sx={{ p: 3 }}>
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                   <Typography variant="h6">
                     Estructura de Blinds
                   </Typography>
-                  <Button
-                    startIcon={<AddIcon />}
-                    onClick={handleAddBlindLevel}
-                    variant="outlined"
-                  >
-                    Agregar Nivel
-                  </Button>
+                  <Box display="flex" gap={1}>
+                    <Button
+                      startIcon={<FileDownloadIcon />}
+                      onClick={handleExportBlinds}
+                      variant="outlined"
+                      color="success"
+                      size="small"
+                    >
+                      Exportar
+                    </Button>
+                    <Button
+                      startIcon={<FileUploadIcon />}
+                      onClick={handleImportClick}
+                      variant="outlined"
+                      color="info"
+                      size="small"
+                    >
+                      Importar
+                    </Button>
+                    <Button
+                      startIcon={<AddIcon />}
+                      onClick={handleAddBlindLevel}
+                      variant="outlined"
+                    >
+                      Agregar Nivel
+                    </Button>
+                  </Box>
+                </Box>
+
+                {/* Información sobre importar/exportar */}
+                <Box mb={2}>
+                  <Typography variant="body2" color="text.secondary">
+                    💡 <strong>Exportar:</strong> Guarda la estructura de blinds y sistema de puntos en un archivo JSON. 
+                    <strong> Importar:</strong> Carga una configuración completa desde un archivo JSON previamente exportado.
+                  </Typography>
                 </Box>
                 
                 <TableContainer>
@@ -462,6 +681,15 @@ const CreateTournament: React.FC = () => {
             </Grid>
           </Grid>
         </form>
+
+        {/* Input file oculto para importar */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleImportBlinds}
+          accept=".json"
+          style={{ display: 'none' }}
+        />
       </Box>
     </LocalizationProvider>
   );

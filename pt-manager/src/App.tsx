@@ -13,23 +13,228 @@ import Reports from './pages/Reports';
 import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
 import CreateTournament from './pages/CreateTournament';
+import TournamentList from './pages/TournamentList';
 import UserAdmin from './pages/UserAdmin';
 import Layout from './components/layout/Layout';
 import { API_BASE_URL } from './services/apiService';
 import SeasonAdmin from './pages/SeasonAdmin';
 
-// Tema personalizado
+// Tema personalizado inspirado en aplicaciones de póker modernas
 const theme = createTheme({
   palette: {
+    mode: 'dark',
     primary: {
-      main: '#1976d2',
+      main: '#ff4757', // Rojo vibrante como en las imágenes
+      light: '#ff6b7a',
+      dark: '#c44569',
     },
     secondary: {
-      main: '#dc004e',
+      main: '#ffa502', // Dorado/amarillo para elementos premium
+      light: '#ffb142',
+      dark: '#f39c12',
+    },
+    background: {
+      default: '#0c0c0c', // Negro profundo
+      paper: '#1a1a1a', // Gris muy oscuro para cards
+    },
+    text: {
+      primary: '#ffffff', // Blanco puro
+      secondary: '#b0b0b0', // Gris claro
+    },
+    success: {
+      main: '#2ed573', // Verde para elementos positivos
+    },
+    warning: {
+      main: '#ffa502', // Dorado para advertencias
+    },
+    error: {
+      main: '#ff4757', // Rojo para errores
+    },
+    info: {
+      main: '#3742fa', // Azul para información
     },
   },
   typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    fontWeightLight: 300,
+    fontWeightRegular: 400,
+    fontWeightMedium: 500,
+    fontWeightBold: 700,
+    // Optimizaciones para móvil
+    h1: {
+      fontWeight: 700,
+      '@media (max-width:900px)': {
+        fontSize: '2rem',
+      },
+    },
+    h2: {
+      fontWeight: 600,
+      '@media (max-width:900px)': {
+        fontSize: '1.75rem',
+      },
+    },
+    h3: {
+      fontWeight: 600,
+      '@media (max-width:900px)': {
+        fontSize: '2.5rem',
+      },
+    },
+    h4: {
+      fontWeight: 500,
+      '@media (max-width:900px)': {
+        fontSize: '1.8rem',
+      },
+    },
+    h5: {
+      fontWeight: 500,
+    },
+    h6: {
+      fontWeight: 500,
+    },
+    body1: {
+      fontWeight: 400,
+    },
+    body2: {
+      fontWeight: 400,
+    },
+    button: {
+      fontWeight: 500,
+      textTransform: 'none', // Sin mayúsculas automáticas
+    },
+  },
+  components: {
+    // Prevenir zoom automático en inputs móviles
+    MuiInputBase: {
+      styleOverrides: {
+        input: {
+          fontSize: '16px', // Previene zoom automático en iOS
+          '@media (max-width:900px)': {
+            fontSize: '16px', // Asegurar 16px en móvil
+          },
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          '& .MuiInputBase-input': {
+            fontSize: '16px',
+            '@media (max-width:900px)': {
+              fontSize: '16px',
+            },
+          },
+        },
+      },
+    },
+    // Optimizar botones para táctil con estilo de póker
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          minHeight: '44px', // Mínimo recomendado para táctil (44x44px)
+          borderRadius: '12px', // Bordes más redondeados como en las imágenes
+          fontWeight: 500,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          transition: 'all 0.2s ease-in-out',
+          '&:hover': {
+            transform: 'translateY(-2px)',
+            boxShadow: '0 6px 16px rgba(0,0,0,0.4)',
+          },
+          '&:active': {
+            transform: 'translateY(0)',
+          },
+          '@media (max-width:900px)': {
+            minHeight: '48px',
+            fontSize: '1rem',
+            padding: '12px 24px',
+          },
+        },
+        contained: {
+          background: 'linear-gradient(135deg, #ff4757 0%, #c44569 100%)',
+          '&:hover': {
+            background: 'linear-gradient(135deg, #ff6b7a 0%, #ff4757 100%)',
+          },
+        },
+        outlined: {
+          borderWidth: '2px',
+          '&:hover': {
+            borderWidth: '2px',
+            background: 'rgba(255, 71, 87, 0.1)',
+          },
+        },
+        sizeLarge: {
+          '@media (max-width:900px)': {
+            minHeight: '52px',
+            fontSize: '1.1rem',
+            padding: '14px 28px',
+          },
+        },
+      },
+    },
+    // Optimizar IconButtons para móvil
+    MuiIconButton: {
+      styleOverrides: {
+        root: {
+          '@media (max-width:900px)': {
+            padding: '12px', // Más área táctil
+          },
+        },
+      },
+    },
+
+    // Optimizar AppBar para móvil con estilo de póker
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          background: 'linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 100%)',
+          boxShadow: '0 2px 20px rgba(0,0,0,0.5)',
+          '@media (max-width:900px)': {
+            '& .MuiToolbar-root': {
+              minHeight: '56px',
+              paddingLeft: '8px',
+              paddingRight: '8px',
+            },
+          },
+        },
+      },
+    },
+    
+    // Estilo para Cards con apariencia de póker
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)',
+          borderRadius: '16px',
+          border: '1px solid rgba(255,255,255,0.1)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          transition: 'all 0.3s ease-in-out',
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
+            border: '1px solid rgba(255,71,87,0.3)',
+          },
+        },
+      },
+    },
+    
+    // Estilo para Chips con apariencia de póker
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          borderRadius: '20px',
+          fontWeight: 500,
+          '&.MuiChip-colorPrimary': {
+            background: 'linear-gradient(135deg, #ff4757 0%, #c44569 100%)',
+          },
+          '&.MuiChip-colorSecondary': {
+            background: 'linear-gradient(135deg, #ffa502 0%, #f39c12 100%)',
+          },
+          '@media (max-width:900px)': {
+            fontSize: '0.8rem',
+            height: '28px',
+          },
+        },
+      },
+    },
   },
 });
 
@@ -141,6 +346,7 @@ npm run dev`}
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/tournaments" element={<TournamentList />} />
             <Route path="/tournament/new" element={<CreateTournament />} />
             <Route path="/tournament/:id" element={<TournamentView />} />
             <Route path="/tournament/:id/manage" element={<TournamentManagement />} />

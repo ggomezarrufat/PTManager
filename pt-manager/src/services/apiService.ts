@@ -39,12 +39,14 @@ export class ApiError extends Error {
   }
 }
 
-// Generic API request function
+// Generic API request function with retry logic for rate limiting
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
   const token = localStorage.getItem('authToken');
+  const maxRetries = 3;
+  let retryCount = 0;
 
   const config: RequestInit = {
     headers: {
@@ -55,84 +57,99 @@ async function apiRequest<T>(
     ...options,
   };
 
-  try {
-    // Debug: log de la llamada cuando se crea un torneo
-    const method = (config.method || 'GET').toString().toUpperCase();
-    if (endpoint === '/api/tournaments' && method === 'POST') {
-      const maskedHeaders: Record<string, unknown> = { ...(config.headers as Record<string, unknown>) };
-      if (maskedHeaders && typeof maskedHeaders.Authorization === 'string') {
-        const auth = maskedHeaders.Authorization as string;
-        maskedHeaders.Authorization = auth.replace(/Bearer\s+(.{3}).+/, 'Bearer $1***');
-      }
-      let bodyPreview: unknown = undefined;
-      try {
-        bodyPreview = config.body ? JSON.parse(config.body as string) : undefined;
-      } catch {
-        bodyPreview = config.body;
-      }
-      // Log compacto y claro
-      // eslint-disable-next-line no-console
-      console.log('🛰️ API Request (Create Tournament):', {
-        url: `${API_BASE_URL}${endpoint}`,
-        method,
-        headers: maskedHeaders,
-        body: bodyPreview,
-      });
-    }
-
-    let response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    
-    if (!response.ok) {
-      // Intentar refresh en 401 y reintentar una vez
-      if (response.status === 401 && !(options as any)._retried) {
-        const refreshed = await tryRefreshToken();
-        if (refreshed) {
-          const token = localStorage.getItem('authToken');
-          const retryConfig: RequestInit = {
-            ...config,
-            headers: {
-              ...(config.headers || {}),
-              ...(token && { Authorization: `Bearer ${token}` })
-            }
-          };
-          response = await fetch(`${API_BASE_URL}${endpoint}`, { ...retryConfig, _retried: true } as any);
-        }
-      }
-      let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-      try {
-        const errorData = await response.json();
-        errorMessage = errorData.message || errorMessage;
-      } catch {
-        // Si no puede parsear JSON, usar el mensaje por defecto
-      }
-      if (response.status === 404) {
-        errorMessage = `No se encontró la ruta en el backend (${API_BASE_URL}${endpoint}). Verifica REACT_APP_API_URL y que la API esté corriendo.`;
-      }
-      // eslint-disable-next-line no-console
+  while (retryCount <= maxRetries) {
+    try {
+      // Debug: log de la llamada cuando se crea un torneo
+      const method = (config.method || 'GET').toString().toUpperCase();
       if (endpoint === '/api/tournaments' && method === 'POST') {
-        console.error('🛑 API Error (Create Tournament):', {
+        const maskedHeaders: Record<string, unknown> = { ...(config.headers as Record<string, unknown>) };
+        if (maskedHeaders && typeof maskedHeaders.Authorization === 'string') {
+          const auth = maskedHeaders.Authorization as string;
+          maskedHeaders.Authorization = auth.replace(/Bearer\s+(.{3}).+/, 'Bearer $1***');
+        }
+        let bodyPreview: unknown = undefined;
+        try {
+          bodyPreview = config.body ? JSON.parse(config.body as string) : undefined;
+        } catch {
+          bodyPreview = config.body;
+        }
+        // Log compacto y claro
+        // eslint-disable-next-line no-console
+        console.log('🛰️ API Request (Create Tournament):', {
           url: `${API_BASE_URL}${endpoint}`,
-          status: response.status,
-          statusText: response.statusText,
+          method,
+          headers: maskedHeaders,
+          body: bodyPreview,
         });
       }
-      throw new ApiError(errorMessage, response.status);
-    }
 
-    // Handle empty responses (like 204 No Content)
-    if (response.status === 204 || response.headers.get('content-length') === '0') {
-      return {} as T;
-    }
+      let response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+      
+      if (!response.ok) {
+        // Intentar refresh en 401 y reintentar una vez
+        if (response.status === 401 && !(options as any)._retried) {
+          const refreshed = await tryRefreshToken();
+          if (refreshed) {
+            const token = localStorage.getItem('authToken');
+            const retryConfig: RequestInit = {
+              ...config,
+              headers: {
+                ...(config.headers || {}),
+                ...(token && { Authorization: `Bearer ${token}` })
+              }
+            };
+            response = await fetch(`${API_BASE_URL}${endpoint}`, { ...retryConfig, _retried: true } as any);
+          }
+        }
 
-    return await response.json();
-  } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
+        // Manejar rate limiting (429) con retry automático
+        if (response.status === 429 && retryCount < maxRetries) {
+          retryCount++;
+          const delay = Math.pow(2, retryCount) * 1000; // Backoff exponencial: 2s, 4s, 8s
+          console.log(`🔄 Rate limit alcanzado, reintentando en ${delay/1000}s... (intento ${retryCount}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+        } catch {
+          // Si no puede parsear JSON, usar el mensaje por defecto
+        }
+        if (response.status === 404) {
+          errorMessage = `No se encontró la ruta en el backend (${API_BASE_URL}${endpoint}). Verifica REACT_APP_API_URL y que la API esté corriendo.`;
+        }
+        // eslint-disable-next-line no-console
+        if (endpoint === '/api/tournaments' && method === 'POST') {
+          console.error('🛑 API Error (Create Tournament):', {
+            url: `${API_BASE_URL}${endpoint}`,
+            status: response.status,
+            statusText: response.statusText,
+          });
+        }
+        throw new ApiError(errorMessage, response.status);
+      }
+
+      // Handle empty responses (like 204 No Content)
+      if (response.status === 204 || response.headers.get('content-length') === '0') {
+        return {} as T;
+      }
+
+      return await response.json();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(
+        error instanceof Error ? error.message : 'Error de conexión con el servidor'
+      );
     }
-    throw new ApiError(
-      error instanceof Error ? error.message : 'Error de conexión con el servidor'
-    );
   }
+
+  // Si llegamos aquí, se agotaron los reintentos
+  throw new ApiError('Se agotaron los reintentos debido al rate limiting. Intenta de nuevo en unos minutos.');
 }
 
 // Authentication Service
@@ -366,6 +383,24 @@ const tournamentService = {
     }>(`/api/tournaments/${tournamentId}/results`, {
       method: 'PUT',
       body: JSON.stringify({ results }),
+    });
+  },
+
+  async updateTournament(id: string, tournamentData: any) {
+    return await apiRequest<{
+      message: string;
+      tournament: any;
+    }>(`/api/tournaments/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(tournamentData),
+    });
+  },
+
+  async deleteTournament(id: string) {
+    return await apiRequest<{
+      message: string;
+    }>(`/api/tournaments/${id}`, {
+      method: 'DELETE',
     });
   },
 };

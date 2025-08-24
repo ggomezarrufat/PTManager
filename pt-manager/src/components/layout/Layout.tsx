@@ -26,16 +26,18 @@ import {
   Logout,
   Settings,
   AdminPanelSettings,
-  Dashboard as DashboardIcon,
+  Home as HomeIcon,
   Add as AddIcon,
   People as PeopleIcon,
   Settings as SettingsIcon,
   Assessment as AssessmentIcon,
-  CalendarToday as CalendarIcon
+  CalendarToday as CalendarIcon,
+  Diamond as DiamondIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
 import { getUserDisplayName, getUserFullName } from '../../utils/userUtils';
+import MobileBottomNavigation from './MobileBottomNavigation';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -54,7 +56,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [userMenuAnchor, setUserMenuAnchor] = useState<null | HTMLElement>(null);
 
   const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
+    { text: 'Inicio', icon: <HomeIcon />, path: '/' },
     { text: 'Crear Torneo', icon: <AddIcon />, path: '/tournament/new' },
     { text: 'Temporadas', icon: <CalendarIcon />, path: '/seasons', adminOnly: true },
     { text: 'Usuarios', icon: <PeopleIcon />, path: '/users', adminOnly: true },
@@ -107,7 +109,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <Box sx={{ width: drawerOpen ? drawerWidthOpen : drawerWidthClosed }}>
       {/* Logo y título */}
       <Box sx={{ p: 2, textAlign: 'center' }}>
-        <Casino sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
+        <DiamondIcon sx={{ 
+          fontSize: 40, 
+          color: '#ffd700', 
+          mb: 1,
+          filter: 'drop-shadow(0 2px 4px rgba(255,215,0,0.4))',
+          transition: 'all 0.3s ease-in-out',
+          '&:hover': {
+            transform: 'scale(1.05)',
+            filter: 'drop-shadow(0 4px 8px rgba(255,215,0,0.6))',
+          }
+        }} />
         <Typography variant="h6" component="div">
           Poker Manager
         </Typography>
@@ -220,22 +232,54 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <Box sx={{ display: 'flex' }}>
-      {/* App Bar */}
-      <AppBar position="fixed" sx={{ zIndex: theme.zIndex.drawer + 1 }}>
+      {/* App Bar con estilo de póker */}
+      <AppBar position="fixed" sx={{ 
+        zIndex: theme.zIndex.drawer + 1,
+        background: 'linear-gradient(135deg, #0c0c0c 0%, #1a1a1a 100%)',
+        borderBottom: '1px solid rgba(255,255,255,0.1)',
+      }}>
         <Toolbar>
           <IconButton
             color="inherit"
             aria-label="open drawer"
             edge="start"
-          onClick={handleDrawerToggle}
-          sx={{ mr: 2 }}
+            onClick={handleDrawerToggle}
+            sx={{ 
+              mr: 2,
+              '&:hover': {
+                background: 'rgba(255,255,255,0.1)',
+              },
+            }}
           >
             <MenuIcon />
           </IconButton>
 
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Poker Tournament Manager
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+            <DiamondIcon sx={{ 
+              fontSize: 32, 
+              color: '#ffd700', 
+              mr: 1,
+              filter: 'drop-shadow(0 2px 4px rgba(255,215,0,0.6)) drop-shadow(0 4px 8px rgba(255,215,0,0.3))',
+              transition: 'all 0.3s ease-in-out',
+              '&:hover': {
+                transform: 'scale(1.1) rotate(5deg)',
+                filter: 'drop-shadow(0 4px 8px rgba(255,215,0,0.8)) drop-shadow(0 8px 16px rgba(255,215,0,0.4))',
+              }
+            }} />
+            <Typography 
+              variant="h6" 
+              component="div" 
+              sx={{ 
+                fontWeight: 700,
+                background: 'linear-gradient(135deg, #ffffff 0%, #ffa502 100%)',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              Tournament Manager
+            </Typography>
+          </Box>
 
           {/* Menú de usuario */}
           <Box display="flex" alignItems="center" gap={2}>
@@ -245,6 +289,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 size="small" 
                 color="secondary" 
                 variant="outlined"
+                sx={{
+                  borderColor: '#ffa502',
+                  color: '#ffa502',
+                  fontWeight: 600,
+                  '&:hover': {
+                    background: 'rgba(255,165,2,0.1)',
+                  },
+                }}
               />
             )}
             
@@ -297,13 +349,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
+          p: isMobile ? 2 : 3,
           width: { md: `calc(100% - ${drawerOpen ? drawerWidthOpen : drawerWidthClosed}px)` },
           mt: '64px', // Altura del AppBar
+          mb: isMobile ? '80px' : 0, // Espacio para bottom navigation siempre visible en móvil
         }}
       >
         {children}
       </Box>
+
+      {/* Navegación inferior móvil */}
+      <MobileBottomNavigation />
 
       {/* Menú de usuario */}
       <Menu

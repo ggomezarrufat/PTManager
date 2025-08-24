@@ -7,7 +7,9 @@ import {
   CardContent,
   Grid,
   LinearProgress,
-  Chip
+  Chip,
+  useTheme,
+  useMediaQuery
 } from '@mui/material';
 import {
   PlayArrow as PlayIcon,
@@ -30,6 +32,10 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournament, clock }) 
   const { togglePause, loadClock, finishTournament } = useTournamentStore();
   const { user } = useAuthStore();
   const isAdmin = !!user?.is_admin;
+  
+  // Mobile responsiveness
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const parseAsUtc = (isoLike: string | null | undefined): Date | null => {
     if (!isoLike) return null;
@@ -258,13 +264,26 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournament, clock }) 
         Reloj del Torneo
       </Typography>
 
-      <Grid container spacing={3}>
+      <Grid container spacing={isMobile ? 2 : 3}>
         {/* Tiempo restante */}
         <Grid size={{xs: 12, md: 6}}>
-          <Card>
-            <CardContent>
+          <Card sx={{ 
+            position: isMobile ? 'sticky' : 'static',
+            top: isMobile ? 8 : 'auto',
+            zIndex: isMobile ? 100 : 'auto',
+          }}>
+            <CardContent sx={{ p: isMobile ? 2 : 3 }}>
               <Box textAlign="center">
-                <Typography variant="h3" component="div" color="primary.main">
+                <Typography 
+                  variant={isMobile ? "h4" : "h3"} 
+                  component="div" 
+                  color="primary.main"
+                  sx={{ 
+                    fontVariantNumeric: 'tabular-nums',
+                    fontSize: isMobile ? '2.5rem' : '3rem',
+                    fontWeight: 'bold',
+                  }}
+                >
                   {formatTime(localTime)}
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
@@ -275,45 +294,79 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournament, clock }) 
                   <LinearProgress 
                     variant="determinate" 
                     value={getTimeProgress()} 
-                    sx={{ height: 8, borderRadius: 4 }}
+                    sx={{ height: isMobile ? 10 : 8, borderRadius: 4 }}
                   />
                 </Box>
 
-                <Box display="flex" justifyContent="center" gap={1} mt={2}>
+                {/* Botones optimizados para móvil */}
+                <Box 
+                  display="flex" 
+                  flexDirection={isMobile ? "column" : "row"}
+                  justifyContent="center" 
+                  gap={isMobile ? 1.5 : 1} 
+                  mt={2}
+                >
                   {isAdmin && (
                     <Button
                       variant="contained"
+                      size={isMobile ? "large" : "medium"}
                       startIcon={isRunning ? <PauseIcon /> : <PlayIcon />}
                       onClick={handleTogglePause}
                       color={isRunning ? "warning" : "success"}
+                      sx={{ 
+                        minHeight: isMobile ? '48px' : 'auto',
+                        minWidth: isMobile ? '200px' : 'auto',
+                        fontSize: isMobile ? '1rem' : '0.875rem',
+                      }}
                     >
                       {isRunning ? 'Pausar' : 'Reanudar'}
                     </Button>
                   )}
                   {isAdmin && (
-                    <Button
-                      variant="outlined"
-                      onClick={handlePrevLevel}
+                    <Box 
+                      display="flex" 
+                      gap={1}
+                      width={isMobile ? "100%" : "auto"}
                     >
-                      Nivel Anterior
-                    </Button>
-                  )}
-                  {isAdmin && nextLevel && (
-                    <Button
-                      variant="outlined"
-                      startIcon={<SkipNextIcon />}
-                      onClick={handleNextLevel}
-                    >
-                      Siguiente Nivel
-                    </Button>
+                      <Button
+                        variant="outlined"
+                        size={isMobile ? "large" : "medium"}
+                        onClick={handlePrevLevel}
+                        sx={{ 
+                          minHeight: isMobile ? '48px' : 'auto',
+                          flex: isMobile ? 1 : 'none',
+                        }}
+                      >
+                        {isMobile ? 'Anterior' : 'Nivel Anterior'}
+                      </Button>
+                      {nextLevel && (
+                        <Button
+                          variant="outlined"
+                          size={isMobile ? "large" : "medium"}
+                          startIcon={<SkipNextIcon />}
+                          onClick={handleNextLevel}
+                          sx={{ 
+                            minHeight: isMobile ? '48px' : 'auto',
+                            flex: isMobile ? 1 : 'none',
+                          }}
+                        >
+                          {isMobile ? 'Siguiente' : 'Siguiente Nivel'}
+                        </Button>
+                      )}
+                    </Box>
                   )}
                   {isAdmin && (
                     <Button
                       variant="contained"
+                      size={isMobile ? "large" : "medium"}
                       color="error"
                       startIcon={<StopIcon />}
                       onClick={handleFinishTournament}
                       disabled={tournament.status === 'finished'}
+                      sx={{ 
+                        minHeight: isMobile ? '48px' : 'auto',
+                        minWidth: isMobile ? '200px' : 'auto',
+                      }}
                     >
                       Finalizar Torneo
                     </Button>

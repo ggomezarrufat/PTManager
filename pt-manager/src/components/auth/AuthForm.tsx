@@ -166,9 +166,32 @@ const AuthForm: React.FC = () => {
       localStorage.removeItem('authToken');
       localStorage.removeItem('refreshToken');
       setError(null);
-      setSuccess('Sesión borrada. Vuelve a iniciar sesión.');
+      setSuccess('Sesión borrada. Vuelve a intentar iniciar sesión.');
     } catch (e) {
       setError('No se pudo borrar la sesión');
+    }
+  };
+
+  const handleResetRateLimit = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:3001/reset-rate-limit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        setSuccess('Rate limit reseteado. Puedes intentar iniciar sesión nuevamente.');
+        setError(null);
+      } else {
+        setError('No se pudo resetear el rate limit');
+      }
+    } catch (err) {
+      setError('Error al resetear el rate limit');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -191,7 +214,22 @@ const AuthForm: React.FC = () => {
 
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
+              <Box>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  {error}
+                </Typography>
+                {error.includes('Too Many Requests') || error.includes('429') ? (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={handleResetRateLimit}
+                    disabled={loading}
+                    sx={{ mt: 1 }}
+                  >
+                    Resetear Rate Limit
+                  </Button>
+                ) : null}
+              </Box>
             </Alert>
           )}
 

@@ -82,7 +82,7 @@ const Reports: React.FC = () => {
     if (window.confirm(`¿Estás seguro de que quieres eliminar el torneo "${tournamentName}" y todos sus datos asociados? Esta acción es irreversible.`)) {
       try {
         // Usar fetch directamente ya que deleteTournament no está disponible
-        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:3001'}/api/tournaments/${tournamentId}`, {
+        const response = await fetch(`${process.env.REACT_APP_API_URL || ''}/api/tournaments/${tournamentId}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${localStorage.getItem('authToken') || ''}` }
         });

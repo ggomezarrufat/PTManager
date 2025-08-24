@@ -1,11 +1,30 @@
 // API Service - Centralized API calls for the frontend
-export const API_BASE_URL = 'http://localhost:3001';
+
+// Declarar variables de entorno de forma explícita para TypeScript
+declare const process: {
+  env: {
+    NODE_ENV: string;
+    REACT_APP_API_URL?: string;
+  };
+};
+
+const getApiBaseUrl = () => {
+  // En producción, usar la misma URL del frontend
+  if (process.env.NODE_ENV === 'production') {
+    return window.location.origin;
+  }
+  // En desarrollo, usar localhost
+  return process.env.REACT_APP_API_URL || '';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 // Debug: Log de la URL de la API
 console.log('🔍 API Service Debug:', {
   REACT_APP_API_URL: process.env.REACT_APP_API_URL,
   API_BASE_URL: API_BASE_URL,
-  NODE_ENV: process.env.NODE_ENV
+  NODE_ENV: process.env.NODE_ENV,
+  window_origin: typeof window !== 'undefined' ? window.location.origin : 'N/A'
 });
 
 // Custom error class for API errors

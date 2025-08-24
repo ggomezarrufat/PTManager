@@ -31,20 +31,37 @@ PTManager/
 ```
 
 ### 2. Variables de Entorno
-Configura las siguientes variables en el dashboard de Vercel:
+
+#### 🔧 Configuración Automática de API URL
+El frontend ahora detecta automáticamente la URL de la API:
+- **Desarrollo**: Usa `http://localhost:3001`
+- **Producción**: Usa `window.location.origin` (misma URL que el frontend)
+
+#### ⚙️ Variables Requeridas en Vercel
+Configura las siguientes variables en el dashboard de Vercel (Project Settings → Environment Variables):
 
 ```bash
-# Backend
+# Backend - Variables obligatorias
 NODE_ENV=production
+SUPABASE_URL=tu_url_supabase
+SUPABASE_ANON_KEY=tu_clave_anonima
+JWT_SECRET=tu_secreto_jwt
+
+# Backend - Variables opcionales
 PORT=3001
 CORS_ORIGINS=https://tu-dominio.vercel.app
 
-# Supabase
-SUPABASE_URL=tu_url_supabase
-SUPABASE_ANON_KEY=tu_clave_anonima
+# Frontend - NO necesarias (detección automática)
+# REACT_APP_API_URL se configura automáticamente
+```
 
-# JWT
-JWT_SECRET=tu_secreto_jwt
+#### 📝 Archivo .env.local para Desarrollo
+Para desarrollo local, crea `pt-manager/.env.local`:
+
+```bash
+# Solo necesario en desarrollo
+REACT_APP_API_URL=http://localhost:3001
+GENERATE_SOURCEMAP=false
 ```
 
 ## 🧪 Testing Local

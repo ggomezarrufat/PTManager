@@ -110,7 +110,7 @@ router.post('/login', [
       });
     }
 
-    res.json({
+    const response = {
       message: 'Login exitoso',
       user: profile,
       session: {
@@ -119,7 +119,20 @@ router.post('/login', [
         expires_in: data.session.expires_in,
         expires_at: data.session.expires_at
       }
-    });
+    };
+
+    // Log para debugging en producción
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🔐 Production Login Success:', {
+        hasAccessToken: !!response.session.access_token,
+        hasRefreshToken: !!response.session.refresh_token,
+        tokenPreview: response.session.access_token ? `${response.session.access_token.substring(0, 10)}...` : 'none',
+        userId: profile.id,
+        email: profile.email
+      });
+    }
+
+    res.json(response);
 
   } catch (error) {
     next(error);
@@ -279,6 +292,17 @@ router.post('/register', [
       }
     });
 
+    // Log para debugging en producción
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🔐 Production Register Debug:', {
+        hasUser: !!data?.user,
+        hasSession: !!data?.session,
+        hasAccessToken: !!data?.session?.access_token,
+        userId: data?.user?.id,
+        email: data?.user?.email
+      });
+    }
+
     if (error) {
       return res.status(400).json({
         error: 'Registration Failed',
@@ -286,16 +310,56 @@ router.post('/register', [
       });
     }
 
-    res.status(201).json({
-      message: 'Usuario registrado exitosamente',
-      user: {
-        id: data.user.id,
-        email: data.user.email,
-        name,
-        nickname: nickname || null
-      },
-      needsConfirmation: !data.session // true si necesita confirmar email
-    });
+    // Si hay sesión (email confirmado automáticamente), incluir token
+    if (data.session) {
+      const response = {
+        message: 'Usuario registrado exitosamente',
+        user: {
+          id: data.user.id,
+          email: data.user.email,
+          name,
+          nickname: nickname || null
+        },
+        token: data.session.access_token, // Incluir token para auto-login
+        needsConfirmation: false
+      };
+
+      // Log para debugging en producción
+      if (process.env.NODE_ENV === 'production') {
+        console.log('✅ Production Register Success with Token:', {
+          hasToken: !!response.token,
+          tokenPreview: response.token ? `${response.token.substring(0, 10)}...` : 'none',
+          userId: response.user.id,
+          email: response.user.email
+        });
+      }
+
+      res.status(201).json(response);
+    } else {
+      // Si no hay sesión, el usuario necesita confirmar email
+      const response = {
+        message: 'Usuario registrado exitosamente. Por favor confirma tu email.',
+        user: {
+          id: data.user.id,
+          email: data.user.email,
+          name,
+          nickname: nickname || null
+        },
+        needsConfirmation: true
+      };
+
+      // Log para debugging en producción
+      if (process.env.NODE_ENV === 'production') {
+        console.log('⚠️ Production Register Success but No Session:', {
+          hasToken: false,
+          userId: response.user.id,
+          email: response.user.email,
+          needsConfirmation: true
+        });
+      }
+
+      res.status(201).json(response);
+    }
 
   } catch (error) {
     next(error);

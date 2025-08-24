@@ -51,10 +51,10 @@ app.options('*', cors(corsOptions));
 // Security middleware
 app.use(helmet());
 
-// Rate limiting - más permisivo en desarrollo
+// Rate limiting - más permisivo en desarrollo y Vercel
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // 1000 requests en desarrollo, 100 en producción
+  max: process.env.NODE_ENV === 'production' ? 500 : 1000, // 1000 requests en desarrollo, 500 en producción (Vercel)
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -71,10 +71,10 @@ const limiter = rateLimit({
   }
 });
 
-// Rate limiting específico para autenticación - más permisivo
+// Rate limiting específico para autenticación - más permisivo para Vercel
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 20 : 100, // 100 intentos en desarrollo, 20 en producción
+  max: process.env.NODE_ENV === 'production' ? 100 : 100, // 100 intentos tanto en desarrollo como en producción (Vercel)
   message: 'Demasiados intentos de autenticación. Intenta de nuevo en unos minutos.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -113,6 +113,25 @@ if (process.env.NODE_ENV === 'production') {
     });
     next();
   });
+
+  // Log de rate limiting en producción
+  app.use((req, res, next) => {
+    // Log cuando se alcanza el rate limit
+    res.on('finish', () => {
+      if (res.statusCode === 429) {
+        const clientIP = req.headers['x-forwarded-for'] ? 
+          req.headers['x-forwarded-for'].split(',')[0].trim() : req.ip;
+        console.log('🚫 Production Rate Limit Hit:', {
+          path: req.path,
+          method: req.method,
+          clientIP,
+          userAgent: req.headers['user-agent'],
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+    next();
+  });
 }
 
 // Swagger documentation
@@ -128,19 +147,26 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Rate limit reset endpoint (solo en desarrollo)
-if (process.env.NODE_ENV !== 'production') {
-  app.post('/reset-rate-limit', (req, res) => {
-    // Reset rate limiters
-    limiter.resetKey(req.ip);
-    authLimiter.resetKey(req.ip);
-    
-    res.status(200).json({
-      message: 'Rate limits reset successfully',
-      timestamp: new Date().toISOString()
-    });
+// Rate limit reset endpoint (disponible en desarrollo y producción para debugging)
+app.post('/reset-rate-limit', (req, res) => {
+  // Reset rate limiters
+  const clientIP = req.headers['x-forwarded-for'] ? 
+    req.headers['x-forwarded-for'].split(',')[0].trim() : req.ip;
+  
+  limiter.resetKey(clientIP);
+  authLimiter.resetKey(clientIP);
+  
+  if (process.env.NODE_ENV === 'production') {
+    console.log('🔄 Production: Rate limits reset for IP:', clientIP);
+  }
+  
+  res.status(200).json({
+    message: 'Rate limits reset successfully',
+    timestamp: new Date().toISOString(),
+    clientIP,
+    environment: process.env.NODE_ENV
   });
-}
+});
 
 
 

@@ -20,6 +20,16 @@ const seasonRoutes = require('./routes/seasons');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Configuración para Vercel y entornos serverless
+// Trust proxy es necesario para que express-rate-limit funcione correctamente
+// en entornos donde hay proxies (como Vercel)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+  console.log('🔒 Production: Trust proxy configurado para Vercel');
+} else {
+  console.log('🔓 Development: Trust proxy no configurado');
+}
+
 // CORS configuration (permitir múltiples orígenes en dev) – debe ir antes que cualquier otra cosa
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:5000,http://localhost:5001,https://a907eb818f3b.ngrok-free.app').split(',');
 const corsOptions = {
@@ -49,7 +59,16 @@ const limiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   // Skip rate limiting for health checks
-  skip: (req) => req.path === '/health'
+  skip: (req) => req.path === '/health',
+  // Configuración específica para Vercel
+  keyGenerator: (req) => {
+    // En producción (Vercel), usar X-Forwarded-For si está disponible
+    if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-for']) {
+      return req.headers['x-forwarded-for'].split(',')[0].trim();
+    }
+    // En desarrollo, usar IP normal
+    return req.ip;
+  }
 });
 
 // Rate limiting específico para autenticación - más permisivo
@@ -59,7 +78,16 @@ const authLimiter = rateLimit({
   message: 'Demasiados intentos de autenticación. Intenta de nuevo en unos minutos.',
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: true // No contar requests exitosos
+  skipSuccessfulRequests: true, // No contar requests exitosos
+  // Configuración específica para Vercel
+  keyGenerator: (req) => {
+    // En producción (Vercel), usar X-Forwarded-For si está disponible
+    if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-for']) {
+      return req.headers['x-forwarded-for'].split(',')[0].trim();
+    }
+    // En desarrollo, usar IP normal
+    return req.ip;
+  }
 });
 
 app.use(limiter);
@@ -71,6 +99,21 @@ app.use(express.urlencoded({ extended: true }));
 
 // Logging
 app.use(morgan('combined'));
+
+// Logging adicional para debugging en producción
+if (process.env.NODE_ENV === 'production') {
+  app.use((req, res, next) => {
+    console.log('🌐 Production Request:', {
+      method: req.method,
+      path: req.path,
+      ip: req.ip,
+      xForwardedFor: req.headers['x-forwarded-for'],
+      userAgent: req.headers['user-agent'],
+      timestamp: new Date().toISOString()
+    });
+    next();
+  });
+}
 
 // Swagger documentation
 swaggerSetup(app);

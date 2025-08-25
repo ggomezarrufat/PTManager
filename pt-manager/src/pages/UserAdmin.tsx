@@ -577,6 +577,7 @@ const UserAdmin: React.FC = () => {
                   onChange={(e) => setUserForm({ ...userForm, is_admin: e.target.checked })}
                   disabled={userFormLoading}
                 />
+
               }
               label="Permisos de Administrador"
             />
@@ -726,3 +727,4 @@ const UserAdmin: React.FC = () => {
 };
 
 export default UserAdmin;
+

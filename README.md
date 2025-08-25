@@ -60,8 +60,8 @@ npm install
 Crea un archivo `.env.local` en la raíz del proyecto:
 
 ```env
-REACT_APP_SUPABASE_URL=https://tu-proyecto.supabase.co
-REACT_APP_SUPABASE_ANON_KEY=tu-anon-key
+SUPABASE_URL=https://tu-proyecto.supabase.co
+SUPABASE_ANON_KEY=tu-anon-key
 ```
 
 **Importante**: Reemplaza `tu-proyecto` y `tu-anon-key` con las credenciales reales de tu proyecto Supabase.

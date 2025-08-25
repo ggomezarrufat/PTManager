@@ -12,7 +12,7 @@ import PlayerManagement from './pages/PlayerManagement';
 import ActiveTournamentClock from './pages/ActiveTournamentClock';
 import Reports from './pages/Reports';
 import ResetPassword from './pages/ResetPassword';
-import Profile from './pages/Profile';
+import UserProfile from './pages/UserProfile';
 import CreateTournament from './pages/CreateTournament';
 import TournamentList from './pages/TournamentList';
 import UserAdmin from './pages/UserAdmin';
@@ -375,7 +375,7 @@ npm run dev`}
             <Route path="/tournament/:id/manage" element={<TournamentManagement />} />
             <Route path="/tournament/:id/players" element={<PlayerManagement />} />
             <Route path="/reports" element={<Reports />} />
-            <Route path="/profile" element={<Profile />} />
+            <Route path="/profile" element={<UserProfile />} />
             <Route path="/admin/users" element={<UserAdmin />} />
             <Route path="/seasons" element={<SeasonAdmin />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />

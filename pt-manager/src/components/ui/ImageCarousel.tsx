@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   IconButton,
-  Paper,
-  useTheme
+  Paper
 } from '@mui/material';
 import {
   ChevronLeft,
@@ -22,7 +21,6 @@ const ImageCarousel: React.FC<ImageCarouselProps> = ({
   interval = 5000
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const theme = useTheme();
 
   useEffect(() => {
     if (!autoPlay) return;

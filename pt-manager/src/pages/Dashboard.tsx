@@ -38,6 +38,8 @@ import ImageCarousel from '../components/ui/ImageCarousel';
 import { reportsService, playerService } from '../services/apiService';
 
 const Dashboard: React.FC = () => {
+  console.log('🔍 Dashboard: Componente montándose...');
+  
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const { 
@@ -46,6 +48,13 @@ const Dashboard: React.FC = () => {
     error, 
     loadTournaments 
   } = useTournamentStore();
+  
+  console.log('🔍 Dashboard: Estado inicial:', {
+    user: !!user,
+    tournamentsCount: tournaments?.length || 0,
+    loading,
+    error
+  });
 
   // Estado para manejar inscripciones y jugadores
   const [inscriptions, setInscriptions] = useState<{[key: string]: boolean}>({});
@@ -63,6 +72,10 @@ const Dashboard: React.FC = () => {
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
 
   useEffect(() => {
+    console.log('🔍 Dashboard: useEffect ejecutándose...');
+    console.log('🔍 Dashboard: loadTournaments disponible:', !!loadTournaments);
+    console.log('🔍 Dashboard: loadLeaderboard disponible:', !!loadLeaderboard);
+    
     loadTournaments();
     loadLeaderboard();
   }, [loadTournaments]);
@@ -71,14 +84,22 @@ const Dashboard: React.FC = () => {
 
   const loadLeaderboard = async () => {
     try {
+      console.log('🔍 Dashboard: Iniciando carga del leaderboard...');
       setLeaderboardLoading(true);
       setLeaderboardError(null);
       const response = await reportsService.getLeaderboard();
+      console.log('📊 Dashboard: Leaderboard cargado:', {
+        hasData: !!response.leaderboard,
+        count: response.leaderboard?.length || 0,
+        data: response.leaderboard
+      });
       setLeaderboard(response.leaderboard);
     } catch (err) {
+      console.error('❌ Dashboard: Error cargando leaderboard:', err);
       setLeaderboardError(err instanceof Error ? err.message : 'Error al cargar la tabla de posiciones');
     } finally {
       setLeaderboardLoading(false);
+      console.log('🏁 Dashboard: Leaderboard loading completado');
     }
   };
 
@@ -147,7 +168,6 @@ const Dashboard: React.FC = () => {
 
   const activeTournaments = tournaments.filter((t: Tournament) => t.status === 'active');
   const scheduledTournaments = tournaments.filter((t: Tournament) => t.status === 'scheduled');
-  const finishedTournaments = tournaments.filter((t: Tournament) => t.status === 'finished');
 
   // Cargar jugadores de torneos programados cuando se carguen los torneos
   useEffect(() => {
@@ -187,6 +207,8 @@ const Dashboard: React.FC = () => {
     );
   }
 
+  console.log('🔍 Dashboard: Renderizando componente...');
+  
   return (
     <Box>
       {/* Carrusel de imágenes */}
@@ -216,9 +238,6 @@ const Dashboard: React.FC = () => {
       )}
       {/* Header */}
       <Box mb={4}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Dashboard
-        </Typography>
         <Typography variant="body1" color="text.secondary">
           Bienvenido, {getUserDisplayName(user)}. Aquí puedes gestionar tus torneos de póker.
         </Typography>
@@ -350,6 +369,16 @@ const Dashboard: React.FC = () => {
         </Typography>
         <Card>
           <CardContent>
+            {(() => {
+              console.log('🔍 Dashboard Render: Estado del leaderboard:', {
+                loading: leaderboardLoading,
+                error: leaderboardError,
+                hasData: leaderboard.length > 0,
+                count: leaderboard.length,
+                data: leaderboard
+              });
+              return null;
+            })()}
             {leaderboardLoading ? (
               <Box display="flex" justifyContent="center" alignItems="center" minHeight="100px">
                 <CircularProgress />

@@ -60,17 +60,43 @@ router.get('/', optionalAuth, async (req, res, next) => {
       query = query.eq('status', status);
     }
 
-    // Si el usuario está autenticado, mostrar solo sus torneos
+    // Lógica de permisos para torneos
     if (req.profile) {
-      query = query.eq('created_by', req.profile.id);
+      // Si el usuario es admin, mostrar todos los torneos
+      if (req.profile.role === 'admin') {
+        // Los admins ven todos los torneos
+        console.log('🔍 Tournaments: Usuario admin, mostrando todos los torneos');
+      } else {
+        // Usuarios normales ven todos los torneos públicos
+        console.log('🔍 Tournaments: Usuario normal, mostrando todos los torneos públicos');
+      }
+      // No filtrar por created_by para que todos vean todos los torneos
     } else {
-      // Si no está autenticado, no mostrar torneos privados (todos son públicos en este momento)
-      // query = query.is('created_by', null); // Comentado por ahora
+      // Si no está autenticado, mostrar todos los torneos públicos
+      console.log('🔍 Tournaments: Usuario no autenticado, mostrando todos los torneos públicos');
     }
+
+    console.log('🔍 Tournaments: Ejecutando query con parámetros:', {
+      page,
+      limit,
+      status,
+      offset,
+      hasProfile: !!req.profile,
+      profileId: req.profile?.id,
+      profileIsAdmin: req.profile?.is_admin,
+      profileEmail: req.profile?.email
+    });
 
     const { data: tournaments, error, count } = await query
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
+
+    console.log('📊 Tournaments: Resultado de la query:', {
+      hasData: !!tournaments,
+      count: tournaments?.length || 0,
+      totalCount: count,
+      error: error ? error.message : null
+    });
 
     if (error) {
       throw error;

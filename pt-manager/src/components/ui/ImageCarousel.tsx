@@ -3,8 +3,7 @@ import {
   Box,
   IconButton,
   Paper,
-  useTheme,
-  useMediaQuery
+  useTheme
 } from '@mui/material';
 import {
   ChevronLeft,
@@ -24,7 +23,6 @@ const ImageCarousel: React.FC<ImageCarouselProps> = ({
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     if (!autoPlay) return;

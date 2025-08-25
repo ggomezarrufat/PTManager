@@ -397,7 +397,7 @@ const TournamentList: React.FC = () => {
                         </Box>
 
                         {/* Fechas de inicio y fin si están disponibles */}
-                        {tournament.start_time && (
+                        {tournament.actual_start_time && (
                           <Box display="flex" alignItems="center" gap={1}>
                             <PlayArrowIcon fontSize="small" color="success" />
                             <Box>
@@ -405,7 +405,7 @@ const TournamentList: React.FC = () => {
                                 Iniciado
                               </Typography>
                               <Typography variant="body2" fontWeight={500}>
-                                {formatDate(tournament.start_time)}
+                                {formatDate(tournament.actual_start_time)}
                               </Typography>
                             </Box>
                           </Box>

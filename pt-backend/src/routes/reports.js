@@ -40,10 +40,18 @@ const router = express.Router();
  */
 router.get('/leaderboard', authenticateToken, async (req, res, next) => {
   try {
+    console.log('🔍 Reports: Iniciando carga del leaderboard...');
+    
     // Obtener todos los registros de tournament_players
     const { data: tournamentPlayers, error: tpError } = await supabase
       .from('tournament_players')
       .select('user_id, points_earned');
+    
+    console.log('📊 Reports: tournament_players obtenidos:', {
+      hasData: !!tournamentPlayers,
+      count: tournamentPlayers?.length || 0,
+      data: tournamentPlayers
+    });
 
     if (tpError) {
       console.error('Error fetching tournament players for leaderboard:', tpError);
@@ -60,6 +68,12 @@ router.get('/leaderboard', authenticateToken, async (req, res, next) => {
           tournaments_played: current.tournaments_played + 1
         });
       }
+    });
+    
+    console.log('📊 Reports: userPointsMap procesado:', {
+      hasData: userPointsMap.size > 0,
+      count: userPointsMap.size,
+      data: Array.from(userPointsMap.entries())
     });
 
     // Obtener perfiles de los usuarios
@@ -86,6 +100,12 @@ router.get('/leaderboard', authenticateToken, async (req, res, next) => {
         tournaments_played: stats.tournaments_played
       };
     }).sort((a, b) => b.total_points - a.total_points); // Ordenar de mayor a menor puntos
+
+    console.log('🏆 Reports: Leaderboard final:', {
+      hasData: leaderboard.length > 0,
+      count: leaderboard.length,
+      data: leaderboard
+    });
 
     res.json({ leaderboard });
 

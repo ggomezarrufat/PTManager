@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import TournamentView from './pages/TournamentView';
 import TournamentManagement from './pages/TournamentManagement';
 import PlayerManagement from './pages/PlayerManagement';
+import ActiveTournamentClock from './pages/ActiveTournamentClock';
 import Reports from './pages/Reports';
 import ResetPassword from './pages/ResetPassword';
 import Profile from './pages/Profile';
@@ -338,6 +339,8 @@ npm run dev`}
   }
 
   // Usuario autenticado, mostrar aplicación principal
+  console.log('🔍 App: Usuario autenticado, renderizando aplicación principal');
+  
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -345,9 +348,29 @@ npm run dev`}
         <Layout>
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard" element={
+              (() => {
+                try {
+                  console.log('🔍 App: Renderizando ruta /dashboard');
+                  return <Dashboard />;
+                } catch (error) {
+                  console.error('🚨 App: Error renderizando Dashboard:', error);
+                  return (
+                    <Box p={3} textAlign="center">
+                      <Typography variant="h5" color="error" gutterBottom>
+                        Error al cargar el Dashboard
+                      </Typography>
+                      <Typography variant="body1">
+                        {error instanceof Error ? error.message : 'Error desconocido'}
+                      </Typography>
+                    </Box>
+                  );
+                }
+              })()
+            } />
             <Route path="/tournaments" element={<TournamentList />} />
             <Route path="/tournament/new" element={<CreateTournament />} />
+            <Route path="/tournament/active" element={<ActiveTournamentClock />} />
             <Route path="/tournament/:id" element={<TournamentView />} />
             <Route path="/tournament/:id/manage" element={<TournamentManagement />} />
             <Route path="/tournament/:id/players" element={<PlayerManagement />} />

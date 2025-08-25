@@ -26,12 +26,12 @@ import {
   Settings,
   AdminPanelSettings,
   Home as HomeIcon,
-  Add as AddIcon,
   People as PeopleIcon,
   Settings as SettingsIcon,
   Assessment as AssessmentIcon,
   CalendarToday as CalendarIcon,
-  Diamond as DiamondIcon
+  Diamond as DiamondIcon,
+  EmojiEvents as TournamentIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore';
@@ -56,7 +56,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const menuItems = [
     { text: 'Inicio', icon: <HomeIcon />, path: '/' },
-    { text: 'Crear Torneo', icon: <AddIcon />, path: '/tournament/new' },
+    { text: 'Torneos', icon: <TournamentIcon />, path: '/tournaments' },
     { text: 'Temporadas', icon: <CalendarIcon />, path: '/seasons', adminOnly: true },
     { text: 'Usuarios', icon: <PeopleIcon />, path: '/users', adminOnly: true },
     { text: 'Reportes', icon: <AssessmentIcon />, path: '/reports' },

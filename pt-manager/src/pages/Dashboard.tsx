@@ -26,8 +26,7 @@ import {
   Casino,
   PersonAdd,
   PersonRemove,
-  EmojiEvents,
-  TrendingUp
+  EmojiEvents
 } from '@mui/icons-material';
 import { useTournamentStore } from '../store/tournamentStore';
 import { useAuthStore } from '../store/authStore';
@@ -185,19 +184,7 @@ const Dashboard: React.FC = () => {
 
 
 
-  // Datos simulados para la tabla de posiciones
-  const getLeaderboardData = () => {
-    return [
-      { position: 1, player: "Carlos Rodríguez", chips: 125000, change: "+25%", isCurrentUser: false },
-      { position: 2, player: "María González", chips: 98000, change: "+18%", isCurrentUser: false },
-      { position: 3, player: getUserDisplayName(user), chips: 87500, change: "+12%", isCurrentUser: true },
-      { position: 4, player: "Juan Pérez", chips: 72000, change: "+8%", isCurrentUser: false },
-      { position: 5, player: "Ana Martínez", chips: 65000, change: "+5%", isCurrentUser: false },
-      { position: 6, player: "Luis Fernández", chips: 58000, change: "-2%", isCurrentUser: false },
-      { position: 7, player: "Carmen López", chips: 52000, change: "-5%", isCurrentUser: false },
-      { position: 8, player: "Roberto Silva", chips: 48000, change: "-8%", isCurrentUser: false }
-    ];
-  };
+
 
   if (loading) {
     return (
@@ -462,99 +449,7 @@ const Dashboard: React.FC = () => {
         </Card>
       </Box>
 
-      {/* Tabla de posiciones del torneo actual */}
-      {activeTournaments.length > 0 && (
-        <Box mb={4}>
-          <Typography variant="h5" gutterBottom>
-            Tabla de Posiciones - {activeTournaments[0].name}
-          </Typography>
-          <Card>
-            <TableContainer component={Paper} sx={{ maxHeight: 400 }}>
-              <Table stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
-                      Pos
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
-                      Jugador
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
-                      Fichas
-                    </TableCell>
-                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
-                      Cambio
-                    </TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {getLeaderboardData().map((row) => (
-                    <TableRow 
-                      key={row.position}
-                      sx={{
-                        backgroundColor: row.isCurrentUser ? 'action.hover' : 'inherit',
-                        '&:hover': { backgroundColor: 'action.hover' }
-                      }}
-                    >
-                      <TableCell>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          {row.position === 1 && <EmojiEvents sx={{ color: 'gold', fontSize: 20 }} />}
-                          {row.position === 2 && <EmojiEvents sx={{ color: 'silver', fontSize: 20 }} />}
-                          {row.position === 3 && <EmojiEvents sx={{ color: 'brown', fontSize: 20 }} />}
-                          <Typography 
-                            variant="body2" 
-                            sx={{ 
-                              fontWeight: row.position <= 3 ? 'bold' : 'normal',
-                              color: row.position <= 3 ? 'primary.main' : 'inherit'
-                            }}
-                          >
-                            {row.position}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Typography 
-                          variant="body2" 
-                          sx={{ 
-                            fontWeight: row.isCurrentUser ? 'bold' : 'normal',
-                            color: row.isCurrentUser ? 'primary.main' : 'inherit'
-                          }}
-                        >
-                          {row.player}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                          {row.chips.toLocaleString()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        <Box display="flex" alignItems="center" gap={1}>
-                          <TrendingUp 
-                            sx={{ 
-                              color: row.change.startsWith('+') ? 'success.main' : 'error.main',
-                              fontSize: 16 
-                            }} 
-                          />
-                          <Typography 
-                            variant="body2" 
-                            sx={{ 
-                              color: row.change.startsWith('+') ? 'success.main' : 'error.main',
-                              fontWeight: 'bold'
-                            }}
-                          >
-                            {row.change}
-                          </Typography>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </Card>
-        </Box>
-      )}
+
 
       {/* Mensaje cuando no hay torneos */}
       {tournaments.length === 0 && !loading && (

@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 require('dotenv').config();
 
 const swaggerSetup = require('./config/swagger');
@@ -66,8 +67,8 @@ const limiter = rateLimit({
     if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-for']) {
       return req.headers['x-forwarded-for'].split(',')[0].trim();
     }
-    // En desarrollo, usar IP normal
-    return req.ip;
+    // En desarrollo, usar ipKeyGenerator helper para manejar IPv6 correctamente
+    return ipKeyGenerator(req);
   }
 });
 
@@ -85,8 +86,8 @@ const authLimiter = rateLimit({
     if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-for']) {
       return req.headers['x-forwarded-for'].split(',')[0].trim();
     }
-    // En desarrollo, usar IP normal
-    return req.ip;
+    // En desarrollo, usar ipKeyGenerator helper para manejar IPv6 correctamente
+    return ipKeyGenerator(req);
   }
 });
 

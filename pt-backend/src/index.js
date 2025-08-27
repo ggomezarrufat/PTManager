@@ -4,6 +4,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const { ipKeyGenerator } = require('express-rate-limit');
+const http = require('http');
 require('dotenv').config();
 
 const swaggerSetup = require('./config/swagger');
@@ -19,7 +20,19 @@ const reportRoutes = require('./routes/reports');
 const seasonRoutes = require('./routes/seasons');
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
+
+// Inicializar servidor WebSocket del reloj del torneo (después de dotenv)
+let tournamentClockServer = null;
+try {
+  const TournamentClockServer = require('./tournamentClockServer');
+  tournamentClockServer = new TournamentClockServer(server);
+  console.log('✅ Servidor WebSocket del reloj inicializado correctamente');
+} catch (error) {
+  console.error('❌ Error inicializando servidor WebSocket:', error.message);
+  console.log('⚠️ El reloj en tiempo real no estará disponible');
+}
 
 // Configuración para Vercel y entornos serverless
 // Trust proxy es necesario para que express-rate-limit funcione correctamente
@@ -34,13 +47,12 @@ if (process.env.NODE_ENV === 'production') {
 // CORS configuration (permitir múltiples orígenes en dev) – debe ir antes que cualquier otra cosa
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:5000,http://localhost:5001,https://a907eb818f3b.ngrok-free.app').split(',');
 const corsOptions = {
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true); // permitir peticiones sin origin (Postman, curl)
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    }
-    return callback(new Error('Not allowed by CORS'));
-  },
+  origin: process.env.NODE_ENV === 'production'
+    ? allowedOrigins
+    : function (origin, callback) {
+        // En desarrollo, permitir cualquier origin (incluyendo archivos locales)
+        callback(null, true);
+      },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -207,11 +219,23 @@ app.use('*', (req, res) => {
 app.use(errorHandler);
 
 // Start server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Poker Tournament API running on port ${PORT}`);
+  console.log(`🔌 WebSocket Server initialized for tournament clocks`);
   console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// Manejo de errores no capturados para evitar que el servidor se cierre
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  // No salir del proceso para mantener el servidor corriendo
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  // No salir del proceso para mantener el servidor corriendo
 });
 
 // Graceful shutdown

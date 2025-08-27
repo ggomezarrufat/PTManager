@@ -7,7 +7,7 @@ export interface AvatarUploadResult {
 }
 
 export const avatarService = {
-  async uploadAvatar(file: File): Promise<AvatarUploadResult> {
+  async uploadAvatar(file: File, userId: string): Promise<AvatarUploadResult> {
     try {
       // Validar archivo
       const validation = await this.validateImageFile(file);
@@ -15,10 +15,12 @@ export const avatarService = {
         return { success: false, error: validation.error };
       }
 
-      // Generar nombre único para el archivo
+      // Generar nombre único para el archivo incluyendo userId
       const timestamp = Date.now();
       const fileExtension = file.name.split('.').pop();
-      const fileName = `${timestamp}.${fileExtension}`;
+      const fileName = `${userId}-${timestamp}.${fileExtension}`;
+
+      console.log('🔍 Subiendo avatar:', { fileName, userId, fileSize: file.size });
 
       // Subir archivo a Supabase Storage
       const { error } = await supabase.storage
@@ -29,9 +31,11 @@ export const avatarService = {
         });
 
       if (error) {
-        console.error('Error subiendo avatar:', error);
+        console.error('❌ Error subiendo avatar:', error);
         return { success: false, error: error.message };
       }
+
+      console.log('✅ Avatar subido exitosamente:', fileName);
 
       // Obtener URL pública
       const { data: urlData } = supabase.storage
@@ -40,7 +44,7 @@ export const avatarService = {
 
       return { success: true, url: urlData.publicUrl };
     } catch (error) {
-      console.error('Error en uploadAvatar:', error);
+      console.error('❌ Error en uploadAvatar:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Error desconocido' 
@@ -50,19 +54,25 @@ export const avatarService = {
 
   async updateProfileAvatar(userId: string, avatarUrl: string | null): Promise<void> {
     try {
-      const { error } = await supabase
+      console.log('🔍 AvatarService: Actualizando perfil con userId:', userId, 'avatarUrl:', avatarUrl);
+      
+      const { data, error } = await supabase
         .from('profiles')
         .update({ 
           avatar_url: avatarUrl,
           avatar_updated_at: new Date().toISOString()
         })
-        .eq('id', userId);
+        .eq('id', userId)
+        .select();
 
       if (error) {
+        console.error('❌ Error en updateProfileAvatar:', error);
         throw error;
       }
+
+      console.log('✅ AvatarService: Perfil actualizado exitosamente:', data);
     } catch (error) {
-      console.error('Error actualizando avatar en perfil:', error);
+      console.error('❌ Error actualizando avatar en perfil:', error);
       throw error;
     }
   },

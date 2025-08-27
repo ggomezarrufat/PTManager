@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test WebSocket</title>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Test WebSocket Connection</h1>
+    <div id="status">Conectando...</div>
+    <div id="messages"></div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+
+        function log(message) {
+            console.log(message);
+            messagesDiv.innerHTML += '<div>' + message + '</div>';
+        }
+
+        try {
+            log('Intentando conectar a http://localhost:3001...');
+            const socket = io('http://localhost:3001');
+
+            socket.on('connect', () => {
+                statusDiv.textContent = '✅ Conectado';
+                statusDiv.style.color = 'green';
+                log('✅ WebSocket conectado exitosamente');
+
+                // Intentar unirse al torneo
+                socket.emit('join-tournament', {
+                    tournamentId: 'f2c4e932-3b85-4d91-a528-4b5e278fbf9a',
+                    userId: 'test-user-id'
+                });
+                log('📤 Enviando solicitud de unión al torneo...');
+            });
+
+            socket.on('disconnect', () => {
+                statusDiv.textContent = '❌ Desconectado';
+                statusDiv.style.color = 'red';
+                log('🔌 WebSocket desconectado');
+            });
+
+            socket.on('connect_error', (error) => {
+                statusDiv.textContent = '❌ Error de conexión';
+                statusDiv.style.color = 'red';
+                log('❌ Error de conexión WebSocket: ' + error.message);
+            });
+
+            socket.on('clock-sync', (state) => {
+                log('🔄 Estado del reloj recibido: ' + JSON.stringify(state, null, 2));
+            });
+
+            socket.on('error', (error) => {
+                log('❌ Error del servidor: ' + error.message);
+            });
+
+        } catch (error) {
+            statusDiv.textContent = '❌ Error al crear socket';
+            statusDiv.style.color = 'red';
+            log('❌ Error al crear socket: ' + error.message);
+        }
+    </script>
+</body>
+</html>

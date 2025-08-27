@@ -13,6 +13,7 @@ import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import { tournamentService } from '../services/apiService';
 import { Tournament } from '../types/tournaments';
 import TournamentClock from '../components/tournament/TournamentClock';
+import ConnectionDebug from '../components/tournament/ConnectionDebug';
 
 const ActiveTournamentClock: React.FC = () => {
   const theme = useTheme();
@@ -22,6 +23,7 @@ const ActiveTournamentClock: React.FC = () => {
   const [activeTournament, setActiveTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   useEffect(() => {
     loadActiveTournament();
@@ -31,20 +33,20 @@ const ActiveTournamentClock: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Buscar torneos activos
       const response = await tournamentService.getTournaments(1, 100, 'active');
       const activeTournaments = response.tournaments || [];
-      
+
       if (activeTournaments.length === 0) {
         setError('No hay torneos activos en este momento');
         return;
       }
-      
+
       // Tomar el primer torneo activo
       const tournament = activeTournaments[0];
       setActiveTournament(tournament);
-      
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al cargar el torneo activo');
     } finally {
@@ -74,13 +76,13 @@ const ActiveTournamentClock: React.FC = () => {
         >
           Volver a Torneos
         </Button>
-        
+
         <Alert severity="warning" sx={{ mb: 3 }}>
           {error}
         </Alert>
-        
+
         <Typography variant="body1" color="text.secondary">
-          No hay torneos activos en este momento. 
+          No hay torneos activos en este momento.
           Ve a la sección de Torneos para ver el estado de todos los torneos.
         </Typography>
       </Box>
@@ -97,7 +99,7 @@ const ActiveTournamentClock: React.FC = () => {
         >
           Volver a Torneos
         </Button>
-        
+
         <Alert severity="info">
           No se pudo cargar el torneo activo
         </Alert>
@@ -106,18 +108,18 @@ const ActiveTournamentClock: React.FC = () => {
   }
 
   return (
-    <Box sx={{ 
+    <Box sx={{
       p: { xs: 2, md: 3 },
       minHeight: '100vh',
       display: 'flex',
       flexDirection: 'column'
     }}>
       {/* Header */}
-      <Box sx={{ 
-        display: 'flex', 
+      <Box sx={{
+        display: 'flex',
         flexDirection: { xs: 'column', sm: 'row' },
-        justifyContent: 'space-between', 
-        alignItems: { xs: 'flex-start', sm: 'center' }, 
+        justifyContent: 'space-between',
+        alignItems: { xs: 'flex-start', sm: 'center' },
         mb: 3,
         gap: 2
       }}>
@@ -129,15 +131,15 @@ const ActiveTournamentClock: React.FC = () => {
           >
             Volver a Torneos
           </Button>
-          
-          <Typography 
-            variant={isMobile ? "h5" : "h4"} 
+
+          <Typography
+            variant={isMobile ? "h5" : "h4"}
             component="h1"
             sx={{ fontWeight: 700 }}
           >
             Reloj del Torneo Activo
           </Typography>
-          
+
           <Typography variant="h6" color="primary" sx={{ mt: 1 }}>
             {activeTournament.name}
           </Typography>
@@ -146,10 +148,26 @@ const ActiveTournamentClock: React.FC = () => {
 
       {/* Reloj del Torneo */}
       <Box sx={{ flex: 1 }}>
-        <TournamentClock 
-          tournament={activeTournament}
-          clock={null} // Se cargará automáticamente desde el componente
+        <TournamentClock
+          tournamentId={activeTournament.id}
         />
+      </Box>
+
+      {/* Debug Panel */}
+      <Box sx={{ mt: 4, textAlign: 'center' }}>
+        <Button
+          variant="outlined"
+          color="secondary"
+          onClick={() => setShowDebug(!showDebug)}
+        >
+          {showDebug ? '🔽 Ocultar Debug' : '🔍 Mostrar Debug WebSocket'}
+        </Button>
+
+        {showDebug && (
+          <Box sx={{ mt: 2 }}>
+            <ConnectionDebug tournamentId={activeTournament.id} />
+          </Box>
+        )}
       </Box>
     </Box>
   );

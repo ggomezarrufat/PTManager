@@ -206,6 +206,7 @@ const UserProfile: React.FC = () => {
                 size="xlarge"
                 showDeleteButton={true}
                 showPreview={true}
+                userId={user?.id || ''}
               />
             </CardContent>
           </Card>

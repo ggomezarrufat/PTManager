@@ -54,7 +54,6 @@ const TournamentManagement: React.FC = () => {
   const {
     currentTournament,
     players,
-    clock,
     loading,
     error,
     loadTournament,
@@ -362,8 +361,7 @@ const TournamentManagement: React.FC = () => {
         <Card sx={{ mb: 4 }}>
           <CardContent>
             <TournamentClock 
-              tournament={currentTournament}
-              clock={clock}
+              tournamentId={currentTournament.id}
             />
           </CardContent>
         </Card>

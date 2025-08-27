@@ -11,3 +11,92 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Animaciones para el reloj del torneo */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+@keyframes levelUp {
+  0% {
+    transform: scale(1);
+    background-color: transparent;
+  }
+  50% {
+    transform: scale(1.02);
+    background-color: rgba(76, 175, 80, 0.1);
+  }
+  100% {
+    transform: scale(1);
+    background-color: transparent;
+  }
+}
+
+@keyframes countdown {
+  0% { opacity: 1; }
+  90% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+/* Clases utilitarias para animaciones */
+.level-up-animation {
+  animation: levelUp 0.6s ease-in-out;
+}
+
+.countdown-animation {
+  animation: countdown 1s ease-in-out infinite;
+}
+
+.pulse-animation {
+  animation: pulse 1s infinite;
+}
+
+/* Mejoras visuales para el reloj */
+.tournament-clock-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.tournament-clock-card:hover {
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+.clock-time-display {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: color 0.3s ease;
+}
+
+.clock-progress-bar {
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Estados de conexión */
+.connection-connected {
+  animation: pulse 2s infinite;
+}
+
+.connection-error {
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+/* Responsive design */
+@media (max-width: 600px) {
+  .tournament-clock-card {
+    margin: 8px;
+  }
+
+  .clock-time-display {
+    font-size: 2rem;
+  }
+}

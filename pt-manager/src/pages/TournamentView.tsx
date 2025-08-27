@@ -280,9 +280,8 @@ const TournamentView: React.FC = () => {
           <Grid size={{xs: 12, md: 8}}>
             <Card>
               <CardContent>
-          <TournamentClock
-            tournament={currentTournament}
-            clock={clock}
+                <TournamentClock
+                  tournamentId={currentTournament.id}
                 />
               </CardContent>
             </Card>

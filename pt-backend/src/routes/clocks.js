@@ -379,5 +379,116 @@ router.put('/tournaments/:tournamentId/clock',
   }
 );
 
+/**
+ * @swagger
+ * /api/tournaments/{tournamentId}/clock/initialize:
+ *   post:
+ *     summary: Inicializar reloj del torneo
+ *     tags: [Clock]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tournamentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Reloj inicializado exitosamente
+ *       400:
+ *         description: Error de validación
+ *       403:
+ *         description: No autorizado (solo admins)
+ */
+router.post('/tournaments/:tournamentId/clock/initialize',
+  authenticateToken,
+  [
+    param('tournamentId').isUUID().withMessage('Tournament ID debe ser un UUID válido')
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'Datos de entrada inválidos',
+          details: errors.array()
+        });
+      }
+
+      const { tournamentId } = req.params;
+      const { user } = req;
+
+      // Verificar que el usuario es admin
+      if (!user.is_admin) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: 'Solo los administradores pueden inicializar relojes'
+        });
+      }
+
+      // Verificar que el torneo existe y está activo
+      const { data: tournament, error: tournamentError } = await supabase
+        .from('tournaments')
+        .select('id, status, blind_structure')
+        .eq('id', tournamentId)
+        .single();
+
+      if (tournamentError || !tournament) {
+        return res.status(404).json({
+          error: 'Not Found',
+          message: 'Torneo no encontrado'
+        });
+      }
+
+      if (tournament.status !== 'active') {
+        return res.status(400).json({
+          error: 'Bad Request',
+          message: 'Solo se pueden inicializar relojes para torneos activos'
+        });
+      }
+
+      // Obtener duración del primer nivel
+      let initialTime = 1200; // 20 minutos por defecto
+      if (tournament.blind_structure && tournament.blind_structure.length > 0) {
+        const firstLevel = tournament.blind_structure[0];
+        initialTime = (firstLevel.duration_minutes || 20) * 60;
+      }
+
+      // Crear o actualizar el reloj
+      const { data: clock, error: clockError } = await supabase
+        .from('tournament_clocks')
+        .upsert({
+          tournament_id: tournamentId,
+          current_level: 1,
+          time_remaining_seconds: initialTime,
+          is_paused: false,
+          last_updated: new Date().toISOString()
+        }, {
+          onConflict: 'tournament_id',
+          ignoreDuplicates: false
+        })
+        .select()
+        .single();
+
+      if (clockError) {
+        console.error('Error inicializando reloj:', clockError);
+        throw clockError;
+      }
+
+      console.log(`🕐 Reloj inicializado para torneo ${tournamentId} - Nivel 1, ${initialTime}s`);
+
+      res.json({
+        message: 'Reloj inicializado exitosamente',
+        clock: clock
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 module.exports = router;
 

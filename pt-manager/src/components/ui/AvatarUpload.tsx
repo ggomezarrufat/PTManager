@@ -27,6 +27,7 @@ interface AvatarUploadProps {
   disabled?: boolean;
   showDeleteButton?: boolean;
   showPreview?: boolean;
+  userId: string; // Agregar userId como prop requerida
 }
 
 const AvatarUpload: React.FC<AvatarUploadProps> = ({
@@ -35,7 +36,8 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
   size = 'medium',
   disabled = false,
   showDeleteButton = true,
-  showPreview = true
+  showPreview = true,
+  userId
 }) => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,10 +66,15 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
       setUploading(true);
       setError(null);
 
-      // Subir avatar
-      const result: AvatarUploadResult = await avatarService.uploadAvatar(file);
+      // Subir avatar con userId
+      const result: AvatarUploadResult = await avatarService.uploadAvatar(file, userId);
 
       if (result.success && result.url) {
+        // Actualizar la base de datos con la nueva URL del avatar
+        await avatarService.updateProfileAvatar(userId, result.url);
+        console.log('✅ Avatar actualizado en base de datos:', result.url);
+        
+        // Notificar al componente padre del cambio
         onAvatarChange(result.url);
       } else {
         setError(result.error || 'Error al subir el avatar');
@@ -98,12 +105,14 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
       setUploading(true);
       setError(null);
 
-      // Aquí deberías pasar el userId real
-      const result = await avatarService.deleteAvatar('temp-user-id');
+      // Usar el userId real
+      const result = await avatarService.deleteAvatar(userId);
 
       if (result.success) {
+        // Notificar al componente padre del cambio
         onAvatarChange(null);
         setShowDeleteDialog(false);
+        console.log('✅ Avatar eliminado de base de datos');
       } else {
         setError(result.error || 'Error al eliminar el avatar');
       }

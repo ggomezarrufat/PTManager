@@ -290,10 +290,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 variant="outlined"
                 sx={{
                   borderColor: '#ffa502',
-                  color: '#ffa502',
-                  fontWeight: 600,
+                  color: '#ffffff',
+                  backgroundColor: '#ffa502',
+                  fontWeight: 700,
+                  fontSize: '0.75rem',
                   '&:hover': {
-                    background: 'rgba(255,165,2,0.1)',
+                    background: '#ff8c00',
+                    borderColor: '#ff8c00',
                   },
                 }}
               />
@@ -302,8 +305,28 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <IconButton
               color="inherit"
               onClick={handleUserMenuOpen}
+              sx={{
+                '&:hover': {
+                  background: 'rgba(255,255,255,0.1)',
+                },
+              }}
             >
-              <AccountCircle />
+              {user?.avatar_url ? (
+                <Avatar 
+                  src={user.avatar_url} 
+                  alt={getUserDisplayName(user)}
+                  sx={{ 
+                    width: 32, 
+                    height: 32,
+                    border: '2px solid rgba(255,255,255,0.2)',
+                    '&:hover': {
+                      border: '2px solid rgba(255,255,255,0.4)',
+                    }
+                  }}
+                />
+              ) : (
+                <AccountCircle />
+              )}
             </IconButton>
           </Box>
         </Toolbar>

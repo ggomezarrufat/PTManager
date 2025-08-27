@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Card,
@@ -6,7 +6,6 @@ import {
   Typography,
   TextField,
   Button,
-  Alert,
   Divider,
   IconButton,
   InputAdornment,
@@ -16,7 +15,7 @@ import {
 } from '@mui/material';
 import { Visibility, VisibilityOff, Google, GitHub } from '@mui/icons-material';
 import { useAuthStore } from '../../store/authStore';
-import { ApiError, API_BASE_URL } from '../../services/apiService';
+import { ApiError } from '../../services/apiService';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -56,6 +55,18 @@ const AuthForm: React.FC = () => {
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
 
+  // Debug: Monitorear cambios en el estado
+  useEffect(() => {
+    console.log('🔍 AuthForm: Estado actualizado - error:', error, 'success:', success);
+  }, [error, success]);
+
+  // Debug: Monitorear cambios en loading
+  useEffect(() => {
+    console.log('🔍 AuthForm: Loading actualizado:', loading);
+  }, [loading]);
+
+  // Los mensajes se limpian solo al cambiar de pestaña o al intentar nuevo login/registro
+
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
     setError(null);
@@ -75,30 +86,65 @@ const AuthForm: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccess(null);
+
+    console.log('🔍 AuthForm: Estado inicial - error:', error, 'success:', success);
 
     if (!email || !password) {
-      setError('Por favor completa todos los campos');
+      setError('❌ Por favor completa todos los campos');
       setLoading(false);
       return;
     }
 
     if (!validateEmail(email)) {
-      setError('Por favor ingresa un email válido');
+      setError('❌ Por favor ingresa un email válido');
       setLoading(false);
       return;
     }
 
     try {
+      console.log('🔐 Intentando iniciar sesión con:', email);
       await login(email, password);
-      setSuccess('Inicio de sesión exitoso');
+      console.log('✅ AuthForm: Login exitoso, redirigiendo...');
+      
     } catch (err: unknown) {
+      console.error('❌ Error en login:', err);
+      console.log('🔍 AuthForm: Tipo de error:', typeof err, 'Instancia de ApiError:', err instanceof ApiError);
+      
       if (err instanceof ApiError) {
-        setError(err.message);
+        console.log('🔍 AuthForm: ApiError detectado, status:', err.status, 'message:', err.message);
+        // Mensajes específicos según el tipo de error
+        switch (err.status) {
+          case 400:
+            setError('❌ Credenciales incorrectas. Verifica tu email y contraseña.');
+            break;
+          case 401:
+            setError('❌ Usuario no autorizado. Verifica tus credenciales.');
+            break;
+          case 403:
+            setError('❌ Acceso denegado. Tu cuenta puede estar suspendida.');
+            break;
+          case 404:
+            setError('❌ Usuario no encontrado. Verifica tu email o regístrate.');
+            break;
+          case 429:
+            setError('⚠️ Demasiados intentos. Espera un momento antes de volver a intentar.');
+            break;
+          case 500:
+            setError('🔧 Error del servidor. Intenta más tarde o contacta soporte.');
+            break;
+          default:
+            setError(`❌ ${err.message || 'Error inesperado al iniciar sesión'}`);
+        }
+        console.log('🔍 AuthForm: Error establecido:', error);
       } else {
-        setError('Error inesperado al iniciar sesión');
+        setError('❌ Error inesperado al iniciar sesión. Intenta nuevamente.');
+        console.log('🔍 AuthForm: Error genérico establecido');
       }
+      
     } finally {
       setLoading(false);
+      console.log('🔍 AuthForm: Estado final - error:', error, 'success:', success);
     }
   };
 
@@ -106,35 +152,37 @@ const AuthForm: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setSuccess(null);
 
     // Validaciones
     if (!email || !password || !confirmPassword || !name) {
-      setError('Por favor completa todos los campos');
+      setError('❌ Por favor completa todos los campos obligatorios');
       setLoading(false);
       return;
     }
 
     if (!validateEmail(email)) {
-      setError('Por favor ingresa un email válido');
+      setError('❌ Por favor ingresa un email válido');
       setLoading(false);
       return;
     }
 
     if (!validatePassword(password)) {
-      setError('La contraseña debe tener al menos 6 caracteres');
+      setError('❌ La contraseña debe tener al menos 6 caracteres');
       setLoading(false);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden');
+      setError('❌ Las contraseñas no coinciden');
       setLoading(false);
       return;
     }
 
     try {
+      console.log('📝 Intentando registrar usuario:', { email, name, nickname });
       await register(email, password, name, nickname || undefined);
-      setSuccess('Registro exitoso');
+      setSuccess('✅ ¡Registro exitoso! Ya puedes iniciar sesión.');
       
       // Limpiar formulario
       setEmail('');
@@ -142,12 +190,39 @@ const AuthForm: React.FC = () => {
       setConfirmPassword('');
       setName('');
       setNickname('');
+      
+      // Cambiar a la pestaña de login
+      setTabValue(0);
+      
     } catch (err: unknown) {
+      console.error('❌ Error en registro:', err);
+      
       if (err instanceof ApiError) {
-        setError(err.message);
+        // Mensajes específicos según el tipo de error
+        switch (err.status) {
+          case 400:
+            if (err.message.includes('email')) {
+              setError('❌ Este email ya está registrado. Usa otro email o inicia sesión.');
+            } else {
+              setError('❌ Datos inválidos. Verifica la información ingresada.');
+            }
+            break;
+          case 409:
+            setError('❌ Este email ya está registrado. Usa otro email o inicia sesión.');
+            break;
+          case 422:
+            setError('❌ Datos de entrada inválidos. Verifica el formato de los datos.');
+            break;
+          case 500:
+            setError('🔧 Error del servidor. Intenta más tarde o contacta soporte.');
+            break;
+          default:
+            setError(`❌ ${err.message || 'Error inesperado al registrar'}`);
+        }
       } else {
-        setError('Error inesperado al registrar');
+        setError('❌ Error inesperado al registrar. Intenta nuevamente.');
       }
+      
     } finally {
       setLoading(false);
     }
@@ -159,17 +234,6 @@ const AuthForm: React.FC = () => {
 
   const handleForgotPassword = async () => {
     setError('Recuperación de contraseña no implementada en modo API. Contacte al administrador.');
-  };
-
-  const handleClearSession = () => {
-    try {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('refreshToken');
-      setError(null);
-      setSuccess('Sesión borrada. Vuelve a intentar iniciar sesión.');
-    } catch (e) {
-      setError('No se pudo borrar la sesión');
-    }
   };
 
   const handleResetRateLimit = async () => {
@@ -212,31 +276,25 @@ const AuthForm: React.FC = () => {
             Gestiona tus torneos de poker
           </Typography>
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              <Box>
-                <Typography variant="body2" sx={{ mb: 1 }}>
-                  {error}
+          {/* Indicador de estado general */}
+          {loading && (
+            <Box 
+              sx={{ 
+                mb: 2, 
+                p: 2, 
+                bgcolor: 'info.50', 
+                borderRadius: 1,
+                border: '1px solid',
+                borderColor: 'info.200'
+              }}
+            >
+              <Box display="flex" alignItems="center" gap={1}>
+                <CircularProgress size={16} />
+                <Typography variant="body2" color="info.main">
+                  {tabValue === 0 ? 'Procesando inicio de sesión...' : 'Procesando registro...'}
                 </Typography>
-                {error.includes('Too Many Requests') || error.includes('429') ? (
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    onClick={handleResetRateLimit}
-                    disabled={loading}
-                    sx={{ mt: 1 }}
-                  >
-                    Resetear Rate Limit
-                  </Button>
-                ) : null}
               </Box>
-            </Alert>
-          )}
-
-          {success && (
-            <Alert severity="success" sx={{ mb: 2 }}>
-              {success}
-            </Alert>
+            </Box>
           )}
 
           <Tabs value={tabValue} onChange={handleTabChange} centered sx={{ mb: 2 }}>
@@ -278,14 +336,50 @@ const AuthForm: React.FC = () => {
                   ),
                 }}
               />
+              
+              {/* Mensaje de error destacado */}
+              {error && (
+                <Box 
+                  sx={{ 
+                    mt: 2, 
+                    mb: 2,
+                    p: 2,
+                    bgcolor: 'error.50',
+                    border: '1px solid',
+                    borderColor: 'error.200',
+                    borderRadius: 1,
+                    textAlign: 'center'
+                  }}
+                >
+                  <Typography variant="body2" color="error.main" sx={{ fontWeight: 500, mb: 2 }}>
+                    {error}
+                  </Typography>
+                  
+                  {/* Botón de reset rate limit cuando sea necesario */}
+                  {(error.includes('Too Many Requests') || error.includes('429')) && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={handleResetRateLimit}
+                      disabled={loading}
+                      startIcon={<span>🔄</span>}
+                      sx={{ mt: 1 }}
+                    >
+                      Resetear Rate Limit
+                    </Button>
+                  )}
+                </Box>
+              )}
+              
               <Button
                 type="submit"
                 fullWidth
                 variant="contained"
                 sx={{ mt: 3, mb: 2 }}
                 disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} /> : <span>🔐</span>}
               >
-                {loading ? <CircularProgress size={24} /> : 'Iniciar Sesión'}
+                {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
               </Button>
               <Button
                 fullWidth
@@ -373,14 +467,36 @@ const AuthForm: React.FC = () => {
                   ),
                 }}
               />
+              
+              {/* Mensaje de error destacado para registro */}
+              {error && (
+                <Box 
+                  sx={{ 
+                    mt: 2, 
+                    mb: 2,
+                    p: 2,
+                    bgcolor: 'error.50',
+                    border: '1px solid',
+                    borderColor: 'error.200',
+                    borderRadius: 1,
+                    textAlign: 'center'
+                  }}
+                >
+                  <Typography variant="body2" color="error.main" sx={{ fontWeight: 500 }}>
+                    {error}
+                  </Typography>
+                </Box>
+              )}
+              
               <Button
                 type="submit"
                 fullWidth
                 variant="contained"
                 sx={{ mt: 3, mb: 2 }}
                 disabled={loading}
+                startIcon={loading ? <CircularProgress size={20} /> : <span>📝</span>}
               >
-                {loading ? <CircularProgress size={24} /> : 'Registrarse'}
+                {loading ? 'Creando cuenta...' : 'Registrarse'}
               </Button>
             </Box>
           </TabPanel>
@@ -412,19 +528,20 @@ const AuthForm: React.FC = () => {
             </Button>
           </Box>
 
-          <Button
-            fullWidth
-            variant="text"
-            color="warning"
-            onClick={handleClearSession}
-            disabled={loading}
-            sx={{ mt: 2 }}
-          >
-            Borrar sesión (limpiar token)
-          </Button>
-          
           <Typography variant="caption" color="text.secondary" display="block" textAlign="center" mt={2}>
-            🔗 Conectado a API Backend ({API_BASE_URL})
+            Powered by Gigitus
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block" textAlign="center" mt={1}>
+            <a 
+              href="mailto:ggomezarrufat@gmail.com" 
+              style={{ 
+                color: 'inherit', 
+                textDecoration: 'underline',
+                cursor: 'pointer'
+              }}
+            >
+              Contacta con el desarrollador
+            </a>
           </Typography>
         </CardContent>
       </Card>

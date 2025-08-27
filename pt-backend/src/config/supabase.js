@@ -2,7 +2,7 @@ const { createClient } = require('@supabase/supabase-js');
 
 // Configuración de Supabase para el backend
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Service role key para operaciones de admin
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY; // Service role key para operaciones de admin
 const supabaseAnonKey = process.env.SUPABASE_ANON_KEY; // Anon key para operaciones normales
 
 // Configuración automática de URLs para producción
@@ -32,7 +32,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 if (!supabaseServiceKey && !supabaseAnonKey) {
-  throw new Error('Either SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY is required');
+  throw new Error('Either SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY is required');
 }
 
 // Cliente con permisos de administrador (service role)

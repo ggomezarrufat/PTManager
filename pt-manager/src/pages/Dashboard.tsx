@@ -19,14 +19,16 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  Avatar
 } from '@mui/material';
 import {
   Add,
   Casino,
   PersonAdd,
   PersonRemove,
-  EmojiEvents
+  EmojiEvents,
+  Person
 } from '@mui/icons-material';
 import { useTournamentStore } from '../store/tournamentStore';
 import { useAuthStore } from '../store/authStore';
@@ -217,7 +219,8 @@ const Dashboard: React.FC = () => {
           </Typography>
           <Button
             variant="contained"
-            onClick={() => navigate(`/tournament/${activeTournaments[0].id}`)}
+            color="primary"
+            onClick={() => navigate('/tournament/active')}
           >
             Ver reloj del torneo
           </Button>
@@ -383,6 +386,9 @@ const Dashboard: React.FC = () => {
                         Pos
                       </TableCell>
                       <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
+                        Avatar
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
                         Jugador
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
@@ -417,6 +423,18 @@ const Dashboard: React.FC = () => {
                               #{index + 1}
                             </Typography>
                           </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Avatar
+                            src={entry.avatar_url}
+                            sx={{
+                              width: 32,
+                              height: 32,
+                              bgcolor: entry.avatar_url ? 'transparent' : 'primary.main'
+                            }}
+                          >
+                            {!entry.avatar_url && <Person sx={{ fontSize: 16 }} />}
+                          </Avatar>
                         </TableCell>
                         <TableCell>
                           <Typography 

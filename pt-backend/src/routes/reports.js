@@ -80,7 +80,7 @@ router.get('/leaderboard', authenticateToken, async (req, res, next) => {
     const userIds = Array.from(userPointsMap.keys());
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
-      .select('id, name, nickname, email')
+      .select('id, name, nickname, email, avatar_url')
       .in('id', userIds);
 
     if (profilesError) {
@@ -96,6 +96,7 @@ router.get('/leaderboard', authenticateToken, async (req, res, next) => {
         name: profile.name,
         nickname: profile.nickname,
         email: profile.email,
+        avatar_url: profile.avatar_url,
         total_points: stats.total_points,
         tournaments_played: stats.tournaments_played
       };

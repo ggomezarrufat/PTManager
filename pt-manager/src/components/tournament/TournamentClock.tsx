@@ -1,442 +1,375 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  Box,
-  Typography,
-  Button,
-  Card,
-  CardContent,
-  Grid,
-  LinearProgress,
-  Chip,
-  useTheme,
-  useMediaQuery
-} from '@mui/material';
-import {
-  PlayArrow as PlayIcon,
-  Pause as PauseIcon,
-  SkipNext as SkipNextIcon,
-  Timer as TimerIcon,
-  Stop as StopIcon
-} from '@mui/icons-material';
-import { Tournament, TournamentClock as TournamentClockType, BlindLevel } from '../../types';
-import { clockService } from '../../services/apiService';
-import { useTournamentStore } from '../../store/tournamentStore';
+import React, { useState, useEffect } from 'react';
+import { Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress } from '@mui/material';
+import { PlayArrow, Pause, SkipNext, Timer, RadioButtonChecked, RadioButtonUnchecked } from '@mui/icons-material';
+import { useTournamentClock } from '../../hooks/useTournamentClock';
 import { useAuthStore } from '../../store/authStore';
 
 interface TournamentClockProps {
-  tournament: Tournament;
-  clock: TournamentClockType | null;
+  tournamentId: string;
 }
 
-const TournamentClock: React.FC<TournamentClockProps> = ({ tournament, clock }) => {
-  const { togglePause, loadClock, finishTournament } = useTournamentStore();
+const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   const { user } = useAuthStore();
   const isAdmin = !!user?.is_admin;
   
-  // Mobile responsiveness
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-
-  const parseAsUtc = (isoLike: string | null | undefined): Date | null => {
-    if (!isoLike) return null;
-    const str = isoLike.endsWith('Z') ? isoLike : `${isoLike}Z`;
-    const d = new Date(str);
-    return isNaN(d.getTime()) ? null : d;
-  };
-
-  const computeDerivedTime = useCallback((c: TournamentClockType | null): number => {
-    if (!c) return 0;
-    if (c.is_paused || !c.last_updated) return c.time_remaining_seconds;
-    const lastUpdatedDate = parseAsUtc(c.last_updated);
-    const elapsed = lastUpdatedDate
-      ? Math.floor((Date.now() - lastUpdatedDate.getTime()) / 1000)
-      : 0;
-    return Math.max(0, c.time_remaining_seconds - elapsed);
-  }, []);
-
-  const [localTime, setLocalTime] = useState<number>(computeDerivedTime(clock));
-  const [isRunning, setIsRunning] = useState<boolean>(!!clock && !clock.is_paused);
-  const autoAdvanceTriggeredRef = useRef<boolean>(false);
-
-  // Efecto para sincronizar el reloj local con el backend
-  useEffect(() => {
-    if (clock) {
-      setLocalTime(clock.time_remaining_seconds);
-      setIsRunning(!clock.is_paused);
-      // Resetear trigger de auto-avance al cambiar el reloj/nivel
-      autoAdvanceTriggeredRef.current = false;
+  const {
+    clockState,
+    isConnected,
+    connectionStatus,
+    error,
+    formatTime,
+    getClockInfo,
+    pauseClock,
+    resumeClock,
+    adjustTime,
+    reconnect
+  } = useTournamentClock({
+    tournamentId,
+    userId: user?.id || '',
+    onLevelChanged: (data) => {
+      console.log('🎯 ¡Cambio automático de nivel detectado!', data);
+      // Aquí puedes agregar notificaciones o sonidos
+      // Por ejemplo: toast.success(`¡Nivel ${data.new_level} iniciado!`);
+    },
+    onTournamentEnded: (data) => {
+      console.log('🏁 Torneo terminado:', data);
+      // Aquí puedes agregar notificaciones o redirecciones
+      // Por ejemplo: navigate('/tournaments');
     }
-  }, [clock, computeDerivedTime]);
+  });
 
-  // Contador local para mostrar el tiempo en tiempo real
+  // Obtener información adicional del reloj
+  const clockInfo = getClockInfo();
+
+  // Estados para efectos visuales
+  const [showLevelUp, setShowLevelUp] = useState(false);
+  const [lastLevel, setLastLevel] = useState<number | null>(null);
+
+  // Efecto para mostrar animación de cambio de nivel
   useEffect(() => {
-    if (!isRunning || localTime <= 0) return;
+    if (clockState && clockState.current_level !== lastLevel && lastLevel !== null) {
+      setShowLevelUp(true);
+      const timer = setTimeout(() => setShowLevelUp(false), 3000);
+      return () => clearTimeout(timer);
+    }
+    setLastLevel(clockState?.current_level || null);
+  }, [clockState, lastLevel]);
 
-    const interval = setInterval(() => {
-      setLocalTime(prev => {
-        if (prev <= 1) {
-          setIsRunning(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [isRunning, localTime]);
-
+  // Manejar pausa/reanudación
   const handleTogglePause = async () => {
-    try {
-      // Log sólo cuando vamos a reanudar
-      if (!isRunning) {
-        const nowIso = new Date().toISOString();
-        // eslint-disable-next-line no-console
-        console.log('▶️ Reanudar reloj (frontend)', {
-          now: nowIso,
-          last_updated: clock?.last_updated,
-          time_remaining_seconds: clock?.time_remaining_seconds
-        });
-      }
-      await togglePause(tournament.id);
-    } catch (error) {
-      console.error('Error toggle pause:', error);
+    if (clockState?.is_paused) {
+      await resumeClock();
+    } else {
+      await pauseClock();
     }
   };
 
-  const handleNextLevel = useCallback(async () => {
-    if (!clock || !tournament.blind_structure) return;
-
-    const nextLevel = clock.current_level + 1;
-    const nextBlindLevel = tournament.blind_structure[nextLevel - 1];
-
-    if (nextBlindLevel) {
-      try {
-        await clockService.updateTournamentClock(tournament.id, {
-          current_level: nextLevel,
-          time_remaining_seconds: nextBlindLevel.duration_minutes * 60,
-          is_paused: false
-        });
-        // Recargar reloj desde el backend para sincronizar
-        await loadClock(tournament.id);
-      } catch (error) {
-        console.error('Error next level:', error);
-      }
-    }
-  }, [clock, tournament.blind_structure, tournament.id, loadClock]);
-
-  const handlePrevLevel = async () => {
-    if (!clock || !tournament.blind_structure) return;
-
-    const prevLevel = Math.max(1, clock.current_level - 1);
-    const prevBlindLevel = tournament.blind_structure[prevLevel - 1];
-
-    if (prevBlindLevel) {
-      try {
-        await clockService.updateTournamentClock(tournament.id, {
-          current_level: prevLevel,
-          time_remaining_seconds: prevBlindLevel.duration_minutes * 60,
-          is_paused: false
-        });
-        await loadClock(tournament.id);
-      } catch (error) {
-        console.error('Error prev level:', error);
-      }
-    }
+  // Manejar siguiente nivel
+  const handleNextLevel = async () => {
+    await adjustTime(0); // Esto activará el avance automático en el servidor
   };
 
-  const handleFinishTournament = async () => {
-    try {
-      await finishTournament(tournament.id);
-      await loadClock(tournament.id);
-    } catch (error) {
-      console.error('Error finish tournament:', error);
-    }
-  };
-
-  const formatTime = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-
-    if (hours > 0) {
-      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: 'ARS'
-    }).format(amount);
-  };
-
-  const getCurrentBlindLevel = (): BlindLevel | null => {
-    if (!tournament.blind_structure || !clock) return null;
-    return tournament.blind_structure[clock.current_level - 1] || null;
-  };
-
-  const getNextBlindLevel = (): BlindLevel | null => {
-    if (!tournament.blind_structure || !clock) return null;
-    return tournament.blind_structure[clock.current_level] || null;
-  };
-
+  // Calcular progreso del tiempo (simplificado)
   const getTimeProgress = (): number => {
-    const currentLevel = getCurrentBlindLevel();
-    if (!currentLevel) return 0;
-    
-    const totalTime = currentLevel.duration_minutes * 60;
-    const elapsed = totalTime - localTime;
-    return (elapsed / totalTime) * 100;
+    if (!clockInfo) return 0;
+    // Asumiendo que cada nivel dura 30 segundos para mejor visualización
+    const totalTime = 30;
+    const elapsed = totalTime - clockInfo.timeRemaining;
+    return Math.max(0, Math.min(100, (elapsed / totalTime) * 100));
   };
 
-  const currentLevel = getCurrentBlindLevel();
-  const nextLevel = getNextBlindLevel();
-
-  // Sonidos de cuenta regresiva y cambio de nivel
-  useEffect(() => {
-    if (!isRunning || localTime <= 0) return;
-    // últimos 10s: beep por segundo
-    if (localTime <= 10) {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      gain.gain.setValueAtTime(0.001, ctx.currentTime);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      gain.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
-      osc.stop(ctx.currentTime + 0.22);
+  // Función para obtener el color de conexión
+  const getConnectionColor = () => {
+    switch (connectionStatus) {
+      case 'connected': return 'success';
+      case 'connecting': return 'warning';
+      case 'error': return 'error';
+      default: return 'info';
     }
-    if (localTime === 0 && !autoAdvanceTriggeredRef.current) {
-      // Sonido más agudo y de 2 segundos al finalizar el nivel
-      try {
-        const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'square';
-        const start = ctx.currentTime;
-        // tono agudo sostenido
-        osc.frequency.setValueAtTime(1200, start);
-        gain.gain.setValueAtTime(0.001, start);
-        gain.gain.exponentialRampToValueAtTime(0.6, start + 0.05);
-        gain.gain.exponentialRampToValueAtTime(0.001, start + 2.0);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(start + 2.0);
-      } catch (_) {}
+  };
 
-      // Auto-avanzar al siguiente nivel una vez
-      autoAdvanceTriggeredRef.current = true;
-      (async () => {
-        try {
-          await handleNextLevel();
-        } catch (e) {
-          // noop
-        }
-      })();
+  // Función para obtener el texto de conexión
+  const getConnectionText = () => {
+    switch (connectionStatus) {
+      case 'connected': return 'Conectado';
+      case 'connecting': return 'Conectando...';
+      case 'error': return 'Error de conexión';
+      default: return 'Desconectado';
     }
-  }, [localTime, isRunning, handleNextLevel]);
+  };
 
-  if (!clock || !currentLevel) {
+  // Función para obtener el icono de conexión
+  const getConnectionIcon = () => {
+    switch (connectionStatus) {
+      case 'connected': return <RadioButtonChecked color="success" />;
+      case 'connecting': return <Timer color="warning" />;
+      case 'error': return <RadioButtonUnchecked color="error" />;
+      default: return <RadioButtonUnchecked />;
+    }
+  };
+
+  if (error) {
     return (
-      <Card>
+      <Card sx={{ maxWidth: 400, mx: 'auto', mt: 2 }}>
         <CardContent>
-          <Typography variant="h6" gutterBottom>
-            Reloj del Torneo
-          </Typography>
-          <Typography color="text.secondary">
-            Reloj no inicializado
-          </Typography>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Error de conexión: {error}
+          </Alert>
+          {isAdmin && (
+            <Button
+              variant="outlined"
+              color="primary"
+              onClick={reconnect}
+              fullWidth
+            >
+              Reintentar conexión
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
   }
 
-  return (
-    <Box>
-      <Typography variant="h6" gutterBottom display="flex" alignItems="center" gap={1}>
-        <TimerIcon />
-        Reloj del Torneo
-      </Typography>
+  if (!isConnected && connectionStatus === 'connecting') {
+    return (
+      <Card sx={{ maxWidth: 400, mx: 'auto', mt: 2 }}>
+        <CardContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <Box display="flex" alignItems="center" gap={1}>
+              <Timer />
+              Conectando al servidor...
+            </Box>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
 
-      <Grid container spacing={isMobile ? 2 : 3}>
+  if (!clockState) {
+    return (
+      <Card sx={{ maxWidth: 400, mx: 'auto', mt: 2 }}>
+        <CardContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            No hay reloj activo para este torneo
+          </Alert>
+          <Chip
+            label={getConnectionText()}
+            color={getConnectionColor()}
+            variant="outlined"
+          />
+        </CardContent>
+      </Card>
+    );
+  }
+
+    return (
+    <Card
+      className={`tournament-clock-card ${showLevelUp ? 'level-up-animation' : ''}`}
+      sx={{
+        mb: 3,
+        position: 'relative',
+        overflow: 'hidden',
+        background: showLevelUp
+          ? 'linear-gradient(45deg, #4caf50 0%, #66bb6a 100%)'
+          : undefined,
+        transition: 'all 0.3s ease'
+      }}
+    >
+      <CardContent>
+        {/* Header con información de conexión y nivel */}
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+          <Box>
+            <Typography variant="h5" component="h2">
+              Reloj del Torneo
+            </Typography>
+            <Box display="flex" gap={1} mt={1}>
+              <Chip
+                label={getConnectionText()}
+                color={getConnectionColor()}
+                variant="outlined"
+                size="small"
+              />
+              <Chip
+                label={`Nivel ${clockState.current_level}`}
+                color="primary"
+                variant="outlined"
+                size="small"
+              />
+            </Box>
+          </Box>
+          <Chip
+            label={clockState.is_paused ? 'Pausado' : 'Activo'}
+            color={clockState.is_paused ? 'warning' : 'success'}
+            icon={clockState.is_paused ? <Pause /> : <PlayArrow />}
+          />
+        </Box>
+
+        {/* Animación de cambio de nivel */}
+        {showLevelUp && (
+          <Alert severity="success" sx={{ mb: 2, animation: 'pulse 1s infinite' }}>
+            🎯 ¡Nivel {clockState.current_level} iniciado automáticamente!
+          </Alert>
+        )}
+
         {/* Tiempo restante */}
-        <Grid size={{xs: 12, md: 6}}>
-          <Card sx={{ 
-            position: isMobile ? 'sticky' : 'static',
-            top: isMobile ? 8 : 'auto',
-            zIndex: isMobile ? 100 : 'auto',
-          }}>
-            <CardContent sx={{ p: isMobile ? 2 : 3 }}>
-              <Box textAlign="center">
-                <Typography 
-                  variant={isMobile ? "h4" : "h3"} 
-                  component="div" 
-                  color="primary.main"
-                  sx={{ 
-                    fontVariantNumeric: 'tabular-nums',
-                    fontSize: isMobile ? '2.5rem' : '3rem',
-                    fontWeight: 'bold',
-                  }}
-                >
-                  {formatTime(localTime)}
-                </Typography>
-                <Typography variant="body1" color="text.secondary">
-                  Tiempo restante
-                </Typography>
-                
-                <Box sx={{ mt: 2 }}>
-                  <LinearProgress 
-                    variant="determinate" 
-                    value={getTimeProgress()} 
-                    sx={{ height: isMobile ? 10 : 8, borderRadius: 4 }}
-                  />
-                </Box>
+        <Box textAlign="center" mb={3}>
+          <Typography
+            variant="h2"
+            component="div"
+            className={`clock-time-display ${clockInfo?.timeRemaining && clockInfo.timeRemaining <= 10 ? 'countdown-animation' : ''}`}
+            sx={{
+              fontWeight: 'bold',
+              fontFamily: 'monospace',
+              textShadow: '2px 2px 4px rgba(0,0,0,0.1)',
+              color: clockInfo?.timeRemaining && clockInfo.timeRemaining <= 10
+                ? '#ff5722'
+                : clockState.is_paused
+                  ? '#ff9800'
+                  : 'primary.main'
+            }}
+          >
+            {clockInfo ? clockInfo.formattedTime : formatTime(clockState.time_remaining_seconds)}
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Nivel {clockState.current_level} • {clockInfo?.timeRemaining || clockState.time_remaining_seconds}s restantes
+            {clockInfo?.timeRemaining && clockInfo.timeRemaining <= 10 && (
+              <span style={{ color: '#ff5722', fontWeight: 'bold' }}> ⚠️ ¡TIEMPO!</span>
+            )}
+          </Typography>
 
-                {/* Botones optimizados para móvil */}
-                <Box 
-                  display="flex" 
-                  flexDirection={isMobile ? "column" : "row"}
-                  justifyContent="center" 
-                  gap={isMobile ? 1.5 : 1} 
-                  mt={2}
-                >
-                  {isAdmin && (
-                    <Button
-                      variant="contained"
-                      size={isMobile ? "large" : "medium"}
-                      startIcon={isRunning ? <PauseIcon /> : <PlayIcon />}
-                      onClick={handleTogglePause}
-                      color={isRunning ? "warning" : "success"}
-                      sx={{ 
-                        minHeight: isMobile ? '48px' : 'auto',
-                        minWidth: isMobile ? '200px' : 'auto',
-                        fontSize: isMobile ? '1rem' : '0.875rem',
-                      }}
-                    >
-                      {isRunning ? 'Pausar' : 'Reanudar'}
-                    </Button>
-                  )}
-                  {isAdmin && (
-                    <Box 
-                      display="flex" 
-                      gap={1}
-                      width={isMobile ? "100%" : "auto"}
-                    >
-                      <Button
-                        variant="outlined"
-                        size={isMobile ? "large" : "medium"}
-                        onClick={handlePrevLevel}
-                        sx={{ 
-                          minHeight: isMobile ? '48px' : 'auto',
-                          flex: isMobile ? 1 : 'none',
-                        }}
-                      >
-                        {isMobile ? 'Anterior' : 'Nivel Anterior'}
-                      </Button>
-                      {nextLevel && (
-                        <Button
-                          variant="outlined"
-                          size={isMobile ? "large" : "medium"}
-                          startIcon={<SkipNextIcon />}
-                          onClick={handleNextLevel}
-                          sx={{ 
-                            minHeight: isMobile ? '48px' : 'auto',
-                            flex: isMobile ? 1 : 'none',
-                          }}
-                        >
-                          {isMobile ? 'Siguiente' : 'Siguiente Nivel'}
-                        </Button>
-                      )}
-                    </Box>
-                  )}
-                  {isAdmin && (
-                    <Button
-                      variant="contained"
-                      size={isMobile ? "large" : "medium"}
-                      color="error"
-                      startIcon={<StopIcon />}
-                      onClick={handleFinishTournament}
-                      disabled={tournament.status === 'finished'}
-                      sx={{ 
-                        minHeight: isMobile ? '48px' : 'auto',
-                        minWidth: isMobile ? '200px' : 'auto',
-                      }}
-                    >
-                      Finalizar Torneo
-                    </Button>
-                  )}
-                </Box>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+          {/* Barra de progreso mejorada */}
+          <Box sx={{ mt: 2 }}>
+            <LinearProgress
+              variant="determinate"
+              value={getTimeProgress()}
+              className="clock-progress-bar"
+              sx={{
+                height: 10,
+                borderRadius: 5,
+                backgroundColor: 'rgba(0,0,0,0.1)',
+                '& .MuiLinearProgress-bar': {
+                  borderRadius: 5,
+                  backgroundColor: clockState.is_paused
+                    ? '#ff9800'
+                    : clockInfo?.timeRemaining && clockInfo.timeRemaining <= 10
+                      ? '#ff5722'
+                      : '#4caf50',
+                  transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                  boxShadow: clockInfo?.timeRemaining && clockInfo.timeRemaining <= 10
+                    ? '0 0 10px rgba(255, 87, 34, 0.5)'
+                    : 'none'
+                }
+              }}
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              {Math.round(getTimeProgress())}% completado
+            </Typography>
+          </Box>
+        </Box>
 
-        {/* Nivel actual */}
-        <Grid size={{xs: 12, md: 6}}>
-          <Card>
-            <CardContent>
-              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                <Typography variant="h6">
-                  Nivel {clock.current_level}
-                </Typography>
-                <Chip 
-                  label={isRunning ? "En curso" : "Pausado"} 
-                  color={isRunning ? "success" : "warning"}
-                  size="small"
-                />
-              </Box>
-              
-              <Box display="flex" justifyContent="space-between" mb={1}>
-                <Typography variant="body2" color="text.secondary">
-                  Small Blind:
-                </Typography>
-                <Typography variant="body2" fontWeight="bold">
-                  {formatCurrency(currentLevel.small_blind)}
-                </Typography>
-              </Box>
-              
-              <Box display="flex" justifyContent="space-between" mb={1}>
-                <Typography variant="body2" color="text.secondary">
-                  Big Blind:
-                </Typography>
-                <Typography variant="body2" fontWeight="bold">
-                  {formatCurrency(currentLevel.big_blind)}
-                </Typography>
-              </Box>
-              
-              {currentLevel.antes && (
-                <Box display="flex" justifyContent="space-between" mb={1}>
-                  <Typography variant="body2" color="text.secondary">
-                    Ante:
-                  </Typography>
-                  <Typography variant="body2" fontWeight="bold">
-                    {formatCurrency(currentLevel.antes)}
-                  </Typography>
-                </Box>
-              )}
+        {/* Controles mejorados (solo para admins) */}
+        {isAdmin && (
+          <Box display="flex" justifyContent="center" gap={2} flexWrap="wrap" mb={2}>
+            <Button
+              variant="contained"
+              startIcon={clockState.is_paused ? <PlayArrow /> : <Pause />}
+              onClick={handleTogglePause}
+              color={clockState.is_paused ? 'success' : 'warning'}
+              size="large"
+              disabled={!isConnected}
+            >
+              {clockState.is_paused ? '▶️ Reanudar' : '⏸️ Pausar'}
+            </Button>
 
-              {nextLevel && (
-                <Box mt={2} pt={2} borderTop="1px solid" borderColor="divider">
-                  <Typography variant="body2" color="text.secondary" mb={1}>
-                    Próximo nivel:
-                  </Typography>
-                  <Typography variant="body2">
-                    {formatCurrency(nextLevel.small_blind)} / {formatCurrency(nextLevel.big_blind)}
-                    {nextLevel.antes ? ` (${formatCurrency(nextLevel.antes)})` : ''}
-                  </Typography>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
-    </Box>
+            <Button
+              variant="outlined"
+              startIcon={<SkipNext />}
+              onClick={handleNextLevel}
+              color="secondary"
+              disabled={!isConnected || !clockState.is_paused}
+            >
+              🎯 Forzar Siguiente Nivel
+            </Button>
+          </Box>
+        )}
+
+        {/* Información adicional para usuarios no admin */}
+        {!isAdmin && (
+          <Box textAlign="center" mb={2}>
+            <Typography variant="body2" color="text.secondary">
+              {clockState.is_paused
+                ? '⏸️ El torneo está pausado'
+                : '▶️ El torneo está activo - cambio automático de nivel activado'
+              }
+            </Typography>
+          </Box>
+        )}
+
+        {/* Estado detallado de conexión */}
+        <Box mt={2} textAlign="center">
+          <Box display="flex" justifyContent="center" gap={1} flexWrap="wrap" mb={1}>
+            <Chip
+              label={getConnectionText()}
+              color={getConnectionColor()}
+              size="small"
+              variant="outlined"
+              icon={getConnectionIcon()}
+            />
+            {isConnected && (
+              <Chip
+                label="WebSocket OK"
+                color="success"
+                size="small"
+                variant="filled"
+              />
+            )}
+            {connectionStatus === 'error' && (
+              <Chip
+                label="Error de conexión"
+                color="error"
+                size="small"
+                variant="filled"
+              />
+            )}
+          </Box>
+
+          {connectionStatus !== 'connected' && (
+            <Box mt={1}>
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={reconnect}
+                size="small"
+                disabled={connectionStatus === 'connecting'}
+              >
+                {connectionStatus === 'connecting' ? '🔄 Conectando...' : '🔄 Reintentar conexión'}
+              </Button>
+            </Box>
+          )}
+
+          {error && (
+            <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
+              {error}
+            </Typography>
+          )}
+        </Box>
+
+        {/* Información del sistema automático */}
+        <Box mt={2} p={2} sx={{
+          backgroundColor: 'rgba(76, 175, 80, 0.1)',
+          borderRadius: 2,
+          border: '1px solid rgba(76, 175, 80, 0.2)'
+        }}>
+          <Typography variant="body2" color="success.main" textAlign="center">
+            🎯 <strong>Sistema Automático Activo:</strong> El reloj avanzará automáticamente
+            al siguiente nivel cuando se agote el tiempo ({clockInfo?.timeRemaining || clockState.time_remaining_seconds}s)
+          </Typography>
+          <Typography variant="caption" color="text.secondary" textAlign="center" sx={{ display: 'block', mt: 1 }}>
+            Nivel actual: {clockState.current_level} | Próximo nivel: {clockState.current_level + 1}
+          </Typography>
+        </Box>
+      </CardContent>
+    </Card>
   );
 };
 

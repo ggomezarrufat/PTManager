@@ -639,6 +639,7 @@ const reportsService = {
         name: string;
         nickname: string;
         email: string;
+        avatar_url?: string | null;
         total_points: number;
         tournaments_played: number;
       }[];

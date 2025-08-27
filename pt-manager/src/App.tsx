@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline, Box, CircularProgress, Typography } from '@mui/material';
@@ -255,6 +255,7 @@ const LoadingScreen: React.FC = () => (
 const App: React.FC = () => {
   const { user, loading, error, loadUser } = useAuthStore();
   const { loadTournaments } = useTournamentStore();
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
   // Debug info
   console.log('🔍 App Debug:', {
@@ -269,6 +270,21 @@ const App: React.FC = () => {
     console.log('🚀 App: Iniciando carga inicial de usuario');
     loadUser();
   }, [loadUser]); // Sin dependencias para evitar bucles
+
+  // Mostrar mensaje de éxito cuando el usuario se autentica
+  useEffect(() => {
+    if (user) {
+      console.log('🎉 App: Usuario autenticado, mostrando mensaje de bienvenida');
+      setShowSuccessMessage(true);
+      // Ocultar mensaje después de 2 segundos y permitir que avance
+      const timer = setTimeout(() => {
+        console.log('⏰ App: Ocultando mensaje de bienvenida, avanzando al dashboard');
+        setShowSuccessMessage(false);
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [user]); // Solo depende de user
 
   // Cargar torneos cuando el usuario esté autenticado
   useEffect(() => {
@@ -340,6 +356,47 @@ npm run dev`}
 
   // Usuario autenticado, mostrar aplicación principal
   console.log('🔍 App: Usuario autenticado, renderizando aplicación principal');
+  
+  // Si está mostrando el mensaje de éxito, mostrarlo
+  if (showSuccessMessage) {
+    return (
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Box
+          display="flex"
+          flexDirection="column"
+          justifyContent="center"
+          alignItems="center"
+          minHeight="100vh"
+          p={3}
+          textAlign="center"
+          bgcolor="success.50"
+        >
+          <Box
+            bgcolor="white"
+            p={4}
+            borderRadius={2}
+            boxShadow={3}
+            maxWidth="400px"
+            width="100%"
+          >
+            <Typography variant="h4" color="success.main" gutterBottom>
+              ✅ ¡Bienvenido!
+            </Typography>
+            <Typography variant="body1" mb={3}>
+              Inicio de sesión exitoso
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Ingresando a la página de inicio...
+            </Typography>
+            <Box display="flex" justifyContent="center" mt={3}>
+              <CircularProgress size={24} color="success" />
+            </Box>
+          </Box>
+        </Box>
+      </ThemeProvider>
+    );
+  }
   
   return (
     <ThemeProvider theme={theme}>

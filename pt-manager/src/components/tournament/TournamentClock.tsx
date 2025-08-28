@@ -1,9 +1,9 @@
-import React from 'react';
-import { Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 import { PlayArrow, Pause, SkipNext, SkipPrevious, Timer, RadioButtonChecked, RadioButtonUnchecked } from '@mui/icons-material';
 import { useTournamentClock } from '../../hooks/useTournamentClock';
 import { useAuthStore } from '../../store/authStore';
-import { API_BASE_URL } from '../../services/apiService';
+import { API_BASE_URL, tournamentService } from '../../services/apiService';
 
 interface TournamentClockProps {
   tournamentId: string;
@@ -12,7 +12,7 @@ interface TournamentClockProps {
 const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   const { user } = useAuthStore();
   const isAdmin = !!user?.is_admin;
-  
+
   const {
     clockState,
     isConnected,
@@ -39,6 +39,25 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
 
   // Obtener información adicional del reloj
   const clockInfo = getClockInfo();
+
+  // Estado para la información del torneo
+  const [tournamentInfo, setTournamentInfo] = useState<any>(null);
+
+  // Cargar información del torneo
+  useEffect(() => {
+    const loadTournamentInfo = async () => {
+      try {
+        const response = await tournamentService.getTournament(tournamentId);
+        setTournamentInfo(response.tournament);
+      } catch (error) {
+        console.error('Error cargando información del torneo:', error);
+      }
+    };
+
+    if (tournamentId) {
+      loadTournamentInfo();
+    }
+  }, [tournamentId]);
 
 
 
@@ -373,6 +392,102 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
             Nivel actual: {clockState.current_level} | Próximo nivel: {clockState.current_level + 1}
           </Typography>
         </Box>
+
+        {/* Niveles Configurados */}
+        {tournamentInfo?.blind_structure && tournamentInfo.blind_structure.length > 0 && (
+          <Box mt={2}>
+            <Typography variant="h6" gutterBottom sx={{ textAlign: 'center', color: 'primary.main' }}>
+              Niveles de Ciegas
+            </Typography>
+            <TableContainer component={Paper} sx={{ maxHeight: 300, mt: 1 }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow sx={{ backgroundColor: 'primary.main' }}>
+                    <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Nivel</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Small Blind</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Big Blind</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Duración</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Estado</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {tournamentInfo.blind_structure.map((level: any, index: number) => {
+                    const levelNumber = index + 1;
+                    const isCurrentLevel = clockState?.current_level === levelNumber;
+                    const isPastLevel = clockState?.current_level > levelNumber;
+
+                    // Formatear duración en minutos y segundos
+                    const formatDuration = (minutes: number) => {
+                      const totalSeconds = minutes * 60;
+                      const mins = Math.floor(totalSeconds / 60);
+                      const secs = totalSeconds % 60;
+                      return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
+                    };
+
+                    return (
+                      <TableRow
+                        key={levelNumber}
+                        sx={{
+                          backgroundColor: isCurrentLevel
+                            ? 'rgba(76, 175, 80, 0.1)'
+                            : isPastLevel
+                            ? 'rgba(158, 158, 158, 0.1)'
+                            : 'transparent',
+                          '&:hover': {
+                            backgroundColor: isCurrentLevel
+                              ? 'rgba(76, 175, 80, 0.2)'
+                              : 'rgba(0, 0, 0, 0.04)'
+                          }
+                        }}
+                      >
+                        <TableCell>
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Typography variant="body2" fontWeight={isCurrentLevel ? 'bold' : 'normal'}>
+                              {levelNumber}
+                            </Typography>
+                            {isCurrentLevel && <Chip label="ACTUAL" color="success" size="small" />}
+                          </Box>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={isCurrentLevel ? 'bold' : 'normal'}>
+                            {level.small_blind || 'N/A'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={isCurrentLevel ? 'bold' : 'normal'}>
+                            {level.big_blind || 'N/A'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight={isCurrentLevel ? 'bold' : 'normal'}>
+                            {formatDuration(level.duration_minutes || 20)}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={
+                              isCurrentLevel ? 'En Progreso' :
+                              isPastLevel ? 'Completado' : 'Pendiente'
+                            }
+                            color={
+                              isCurrentLevel ? 'success' :
+                              isPastLevel ? 'default' : 'warning'
+                            }
+                            size="small"
+                            variant={isCurrentLevel ? 'filled' : 'outlined'}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, textAlign: 'center' }}>
+              Total de niveles: {tournamentInfo.blind_structure.length}
+            </Typography>
+          </Box>
+        )}
       </CardContent>
     </Card>
   );

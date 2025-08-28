@@ -13,7 +13,7 @@ import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import { tournamentService } from '../services/apiService';
 import { Tournament } from '../types/tournaments';
 import TournamentClock from '../components/tournament/TournamentClock';
-import ConnectionDebug from '../components/tournament/ConnectionDebug';
+
 
 const ActiveTournamentClock: React.FC = () => {
   const theme = useTheme();
@@ -23,7 +23,7 @@ const ActiveTournamentClock: React.FC = () => {
   const [activeTournament, setActiveTournament] = useState<Tournament | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showDebug, setShowDebug] = useState(false);
+
 
   useEffect(() => {
     loadActiveTournament();
@@ -153,22 +153,7 @@ const ActiveTournamentClock: React.FC = () => {
         />
       </Box>
 
-      {/* Debug Panel */}
-      <Box sx={{ mt: 4, textAlign: 'center' }}>
-        <Button
-          variant="outlined"
-          color="secondary"
-          onClick={() => setShowDebug(!showDebug)}
-        >
-          {showDebug ? '🔽 Ocultar Debug' : '🔍 Mostrar Debug WebSocket'}
-        </Button>
 
-        {showDebug && (
-          <Box sx={{ mt: 2 }}>
-            <ConnectionDebug tournamentId={activeTournament.id} />
-          </Box>
-        )}
-      </Box>
     </Box>
   );
 };

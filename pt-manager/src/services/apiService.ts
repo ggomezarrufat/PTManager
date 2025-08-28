@@ -5,6 +5,7 @@ declare const process: {
   env: {
     NODE_ENV: string;
     REACT_APP_API_URL?: string;
+    REACT_APP_API_BASE_URL?: string;
   };
 };
 
@@ -13,13 +14,24 @@ const getApiBaseUrl = () => {
   if (process.env.NODE_ENV === 'production') {
     return window.location.origin;
   }
-  // En desarrollo, usar localhost
-  return process.env.REACT_APP_API_URL || '';
+
+  // Forzar el uso del puerto 3001 para el backend
+  const backendUrl = 'http://localhost:3001';
+
+  // Log de depuración para verificar configuración
+  console.log('🔧 Backend URL Configuration:', {
+    forcedUrl: backendUrl,
+    reactAppApiUrl: process.env.REACT_APP_API_URL,
+    reactAppApiBaseUrl: process.env.REACT_APP_API_BASE_URL,
+    nodeEnv: process.env.NODE_ENV
+  });
+
+  return backendUrl;
 };
 
 export const API_BASE_URL = getApiBaseUrl();
 
-// Debug: Log de la URL de la API
+// Debug: Log detallado de la URL de la API
 console.log('🔍 API Service Debug:', {
   REACT_APP_API_URL: process.env.REACT_APP_API_URL,
   API_BASE_URL: API_BASE_URL,
@@ -27,6 +39,14 @@ console.log('🔍 API Service Debug:', {
   window_origin: typeof window !== 'undefined' ? window.location.origin : 'N/A',
   isProduction: process.env.NODE_ENV === 'production'
 });
+
+// Log adicional para confirmar configuración forzada
+console.log('🔧 API_BASE_URL forzado a puerto 3001:', API_BASE_URL);
+if (API_BASE_URL === 'http://localhost:3001') {
+  console.log('✅ Configuración correcta: API apunta a puerto 3001');
+} else {
+  console.error('❌ ERROR: API_BASE_URL no está apuntando al puerto correcto:', API_BASE_URL);
+}
 
 // Custom error class for API errors
 export class ApiError extends Error {

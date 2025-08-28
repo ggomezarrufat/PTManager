@@ -40,7 +40,8 @@ El proyecto resuelve la gestión ineficiente de torneos de póker, proporcionand
 ### **Story 1.3: User Role Management & Route Protection** ✅ **EN PROGRESO**
 - ✅ Roles admin y player creados
 - ✅ Nuevos usuarios asignados al rol player por defecto
-- ❌ Un usuario administrador puede asignar el rol administrador a otros usuarios
+- ✅ Nuevos usuarios asignados al rol player por defecto
+- ✅ Un usuario administrador puede asignar el rol administrador a otros usuarios
 - ✅ Rutas del panel admin solo accesibles a usuarios con rol admin
 - ✅ Rutas del panel player solo accesibles a usuarios con rol player
 - ✅ Usuarios no autorizados redirigidos a página de "acceso denegado" o login

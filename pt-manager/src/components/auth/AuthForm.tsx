@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Card,
@@ -48,6 +48,38 @@ const AuthForm: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Ref para mantener el estado del error de manera síncrona
+  const errorRef = useRef<string | null>(null);
+
+  // Variable global para almacenar errores temporalmente
+  const errorKey = 'authForm_lastError';
+
+  // Función simplificada para manejar errores
+  const handleAuthError = React.useCallback((message: string | null) => {
+    if (message) {
+      // Guardar en localStorage para persistencia
+      localStorage.setItem(errorKey, message);
+      errorRef.current = message;
+
+      // Actualizar estado de React
+      setError(message);
+    } else {
+      // Limpiar error
+      localStorage.removeItem(errorKey);
+      errorRef.current = null;
+      setError(null);
+    }
+  }, []);
+
+  // Cargar error del localStorage al montar el componente
+  React.useEffect(() => {
+    const savedError = localStorage.getItem(errorKey);
+    if (savedError) {
+      errorRef.current = savedError;
+      setError(savedError);
+    }
+  }, []);
+
   // Form states
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -55,21 +87,37 @@ const AuthForm: React.FC = () => {
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
 
-  // Debug: Monitorear cambios en el estado
-  useEffect(() => {
-    console.log('🔍 AuthForm: Estado actualizado - error:', error, 'success:', success);
-  }, [error, success]);
 
-  // Debug: Monitorear cambios en loading
+
+  // Limpiar errores automáticamente después de 10 segundos
   useEffect(() => {
-    console.log('🔍 AuthForm: Loading actualizado:', loading);
-  }, [loading]);
+    if (error) {
+      const timer = setTimeout(() => {
+        handleAuthError(null);
+      }, 10000); // 10 segundos
+
+      return () => clearTimeout(timer);
+    }
+  }, [error, handleAuthError]);
+
+
+
+  // Limpiar mensajes de éxito después de 5 segundos
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => {
+        setSuccess(null);
+      }, 5000); // 5 segundos
+
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
 
   // Los mensajes se limpian solo al cambiar de pestaña o al intentar nuevo login/registro
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
-    setError(null);
+    handleAuthError(null);
     setSuccess(null);
   };
 
@@ -82,105 +130,142 @@ const AuthForm: React.FC = () => {
     return password.length >= 6;
   };
 
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSignIn = async (e?: React.FormEvent | React.MouseEvent) => {
+    // Si es un evento, prevenir comportamiento por defecto
+    if (e) {
+      if ('preventDefault' in e) {
+        e.preventDefault();
+      }
+      if ('stopPropagation' in e) {
+        e.stopPropagation();
+      }
+    }
+
+
+
+    // Verificar que no se haya enviado ya
+    if (loading) {
+      return;
+    }
+
     setLoading(true);
-    setError(null);
+    handleAuthError(null);
     setSuccess(null);
 
-    console.log('🔍 AuthForm: Estado inicial - error:', error, 'success:', success);
-
+    // Validaciones del lado cliente
     if (!email || !password) {
-      setError('❌ Por favor completa todos los campos');
+      handleAuthError('⚠️ Por favor completa todos los campos (email y contraseña)');
       setLoading(false);
       return;
     }
 
     if (!validateEmail(email)) {
-      setError('❌ Por favor ingresa un email válido');
+      handleAuthError('⚠️ Por favor ingresa un email válido (ejemplo: usuario@dominio.com)');
+      setLoading(false);
+      return;
+    }
+
+    if (!validatePassword(password)) {
+      handleAuthError('⚠️ La contraseña debe tener al menos 6 caracteres');
       setLoading(false);
       return;
     }
 
     try {
-      console.log('🔐 Intentando iniciar sesión con:', email);
       await login(email, password);
-      console.log('✅ AuthForm: Login exitoso, redirigiendo...');
-      
+
+      // Mostrar mensaje de éxito
+      setSuccess('🎉 ¡Sesión iniciada exitosamente! Redirigiendo...');
+
+      // No hacer navegación automática aquí, dejar que el componente padre maneje la redirección
+      // El reload podría estar siendo causado por algún listener o redirección externa
+
     } catch (err: unknown) {
-      console.error('❌ Error en login:', err);
-      console.log('🔍 AuthForm: Tipo de error:', typeof err, 'Instancia de ApiError:', err instanceof ApiError);
-      
       if (err instanceof ApiError) {
-        console.log('🔍 AuthForm: ApiError detectado, status:', err.status, 'message:', err.message);
-        // Mensajes específicos según el tipo de error
         switch (err.status) {
           case 400:
-            setError('❌ Credenciales incorrectas. Verifica tu email y contraseña.');
+
+            const lowerMessage = err.message.toLowerCase();
+            const hasEmail = lowerMessage.includes('email');
+            const hasPassword = lowerMessage.includes('password') || lowerMessage.includes('contraseña');
+
+            if (hasEmail || hasPassword) {
+              handleAuthError('⚠️ Email o contraseña incorrectos. Verifica tus credenciales.');
+            } else {
+              handleAuthError('⚠️ Datos de acceso inválidos. Revisa tu email y contraseña.');
+            }
             break;
           case 401:
-            setError('❌ Usuario no autorizado. Verifica tus credenciales.');
+            handleAuthError('⚠️ Usuario no autorizado. Verifica que tu email y contraseña sean correctos.');
             break;
           case 403:
-            setError('❌ Acceso denegado. Tu cuenta puede estar suspendida.');
+            handleAuthError('⚠️ Acceso denegado. Tu cuenta puede estar suspendida o no tener permisos.');
             break;
           case 404:
-            setError('❌ Usuario no encontrado. Verifica tu email o regístrate.');
+            handleAuthError('⚠️ Usuario no encontrado. Verifica tu email o regístrate si eres nuevo.');
             break;
           case 429:
-            setError('⚠️ Demasiados intentos. Espera un momento antes de volver a intentar.');
+            handleAuthError('⚠️ Demasiados intentos fallidos. Espera 1-2 minutos antes de intentar nuevamente.');
+            break;
+          case 422:
+            handleAuthError('⚠️ Datos inválidos. Revisa el formato de tu email.');
             break;
           case 500:
-            setError('🔧 Error del servidor. Intenta más tarde o contacta soporte.');
+            handleAuthError('⚠️ Error interno del servidor. Inténtalo en unos momentos.');
+            break;
+          case 503:
+            handleAuthError('⚠️ Servicio no disponible. El servidor está temporalmente fuera de servicio.');
             break;
           default:
-            setError(`❌ ${err.message || 'Error inesperado al iniciar sesión'}`);
+            // Si el mensaje del servidor es específico, lo usamos
+            if (err.message && err.message !== 'Network Error' && err.message !== 'Request failed') {
+              handleAuthError(`⚠️ ${err.message}`);
+
+            } else {
+              handleAuthError('⚠️ Error al iniciar sesión. Revisa tu conexión e intenta nuevamente.');
+            }
         }
-        console.log('🔍 AuthForm: Error establecido:', error);
       } else {
-        setError('❌ Error inesperado al iniciar sesión. Intenta nuevamente.');
-        console.log('🔍 AuthForm: Error genérico establecido');
+        handleAuthError('⚠️ Error inesperado al iniciar sesión. Intenta nuevamente.');
       }
-      
+
     } finally {
       setLoading(false);
-      console.log('🔍 AuthForm: Estado final - error:', error, 'success:', success);
     }
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(null);
+    handleAuthError(null);
     setSuccess(null);
 
     // Validaciones
     if (!email || !password || !confirmPassword || !name) {
-      setError('❌ Por favor completa todos los campos obligatorios');
+      handleAuthError('❌ Por favor completa todos los campos obligatorios');
       setLoading(false);
       return;
     }
 
     if (!validateEmail(email)) {
-      setError('❌ Por favor ingresa un email válido');
+      handleAuthError('❌ Por favor ingresa un email válido');
       setLoading(false);
       return;
     }
 
     if (!validatePassword(password)) {
-      setError('❌ La contraseña debe tener al menos 6 caracteres');
+      handleAuthError('❌ La contraseña debe tener al menos 6 caracteres');
       setLoading(false);
       return;
     }
 
     if (password !== confirmPassword) {
-      setError('❌ Las contraseñas no coinciden');
+      handleAuthError('❌ Las contraseñas no coinciden');
       setLoading(false);
       return;
     }
 
     try {
-      console.log('📝 Intentando registrar usuario:', { email, name, nickname });
       await register(email, password, name, nickname || undefined);
       setSuccess('✅ ¡Registro exitoso! Ya puedes iniciar sesión.');
       
@@ -202,25 +287,25 @@ const AuthForm: React.FC = () => {
         switch (err.status) {
           case 400:
             if (err.message.includes('email')) {
-              setError('❌ Este email ya está registrado. Usa otro email o inicia sesión.');
+              handleAuthError('❌ Este email ya está registrado. Usa otro email o inicia sesión.');
             } else {
-              setError('❌ Datos inválidos. Verifica la información ingresada.');
+              handleAuthError('❌ Datos inválidos. Verifica la información ingresada.');
             }
             break;
           case 409:
-            setError('❌ Este email ya está registrado. Usa otro email o inicia sesión.');
+            handleAuthError('❌ Este email ya está registrado. Usa otro email o inicia sesión.');
             break;
           case 422:
-            setError('❌ Datos de entrada inválidos. Verifica el formato de los datos.');
+            handleAuthError('❌ Datos de entrada inválidos. Verifica el formato de los datos.');
             break;
           case 500:
-            setError('🔧 Error del servidor. Intenta más tarde o contacta soporte.');
+            handleAuthError('🔧 Error del servidor. Intenta más tarde o contacta soporte.');
             break;
           default:
-            setError(`❌ ${err.message || 'Error inesperado al registrar'}`);
+            handleAuthError(`❌ ${err.message || 'Error inesperado al registrar'}`);
         }
       } else {
-        setError('❌ Error inesperado al registrar. Intenta nuevamente.');
+        handleAuthError('❌ Error inesperado al registrar. Intenta nuevamente.');
       }
       
     } finally {
@@ -229,11 +314,11 @@ const AuthForm: React.FC = () => {
   };
 
   const handleSocialAuth = async (provider: 'google' | 'github') => {
-    setError('Autenticación social no disponible en modo API. Use email y contraseña.');
+    handleAuthError('Autenticación social no disponible en modo API. Use email y contraseña.');
   };
 
   const handleForgotPassword = async () => {
-    setError('Recuperación de contraseña no implementada en modo API. Contacte al administrador.');
+    handleAuthError('Recuperación de contraseña no implementada en modo API. Contacte al administrador.');
   };
 
   const handleResetRateLimit = async () => {
@@ -248,12 +333,12 @@ const AuthForm: React.FC = () => {
 
       if (response.ok) {
         setSuccess('Rate limit reseteado. Puedes intentar iniciar sesión nuevamente.');
-        setError(null);
+        handleAuthError(null);
       } else {
-        setError('No se pudo resetear el rate limit');
+        handleAuthError('No se pudo resetear el rate limit');
       }
     } catch (err) {
-      setError('Error al resetear el rate limit');
+      handleAuthError('Error al resetear el rate limit');
     } finally {
       setLoading(false);
     }
@@ -278,22 +363,78 @@ const AuthForm: React.FC = () => {
 
           {/* Indicador de estado general */}
           {loading && (
-            <Box 
-              sx={{ 
-                mb: 2, 
-                p: 2, 
-                bgcolor: 'info.50', 
-                borderRadius: 1,
-                border: '1px solid',
-                borderColor: 'info.200'
+            <Box
+              sx={{
+                mb: 2,
+                p: 3,
+                bgcolor: 'info.50',
+                borderRadius: 2,
+                border: '2px solid',
+                borderColor: 'info.main',
+                boxShadow: '0 2px 8px rgba(25, 118, 210, 0.15)',
+                position: 'relative',
+                overflow: 'hidden'
               }}
             >
-              <Box display="flex" alignItems="center" gap={1}>
-                <CircularProgress size={16} />
-                <Typography variant="body2" color="info.main">
-                  {tabValue === 0 ? 'Procesando inicio de sesión...' : 'Procesando registro...'}
-                </Typography>
+              {/* Indicador visual de progreso */}
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: 4,
+                  bgcolor: 'info.main',
+                  animation: 'pulse 2s infinite'
+                }}
+              />
+
+              <Box display="flex" alignItems="center" gap={2}>
+                <CircularProgress size={20} />
+                <Box>
+                  <Typography variant="body1" color="info.main" sx={{ fontWeight: 600 }}>
+                    {tabValue === 0 ? '🔐 Verificando credenciales...' : '📝 Creando cuenta...'}
+                  </Typography>
+                  <Typography variant="body2" color="info.dark">
+                    {tabValue === 0 ? 'Validando email y contraseña' : 'Procesando tu registro'}
+                  </Typography>
+                </Box>
               </Box>
+            </Box>
+          )}
+
+          {/* Mensaje de éxito */}
+          {success && (
+            <Box
+              sx={{
+                mb: 2,
+                p: 3,
+                bgcolor: 'success.50',
+                border: '2px solid',
+                borderColor: 'success.main',
+                borderRadius: 2,
+                textAlign: 'center',
+                boxShadow: '0 2px 8px rgba(76, 175, 80, 0.15)'
+              }}
+            >
+              <Typography
+                variant="body1"
+                color="success.main"
+                sx={{
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 1,
+                  mb: 1
+                }}
+              >
+                <span style={{ fontSize: '1.2rem' }}>✅</span>
+                ¡Operación Exitosa!
+              </Typography>
+              <Typography variant="body2" color="success.dark">
+                {success}
+              </Typography>
             </Box>
           )}
 
@@ -303,7 +444,19 @@ const AuthForm: React.FC = () => {
           </Tabs>
 
           <TabPanel value={tabValue} index={0}>
-            <Box component="form" onSubmit={handleSignIn}>
+            <Box
+              component="form"
+              onSubmit={handleSignIn}
+              onKeyDown={(e: React.KeyboardEvent) => {
+                // Permitir submit con Enter solo si no está cargando y tiene datos
+                if (e.key === 'Enter' && loading) {
+                  e.preventDefault();
+                } else if (e.key === 'Enter' && (!email || !password)) {
+                  e.preventDefault();
+                }
+              }}
+              noValidate
+            >
               <TextField
                 fullWidth
                 label="Email"
@@ -313,6 +466,14 @@ const AuthForm: React.FC = () => {
                 margin="normal"
                 required
                 disabled={loading}
+                error={!!(error && (error.includes('email') || error.includes('Email')))}
+                helperText={
+                  error && error.includes('email')
+                    ? error
+                    : email && !validateEmail(email)
+                      ? 'Formato de email inválido'
+                      : ''
+                }
               />
               <TextField
                 fullWidth
@@ -323,12 +484,21 @@ const AuthForm: React.FC = () => {
                 margin="normal"
                 required
                 disabled={loading}
+                error={!!(error && (error.includes('contraseña') || error.includes('password') || error.includes('credenciales')))}
+                helperText={
+                  error && (error.includes('contraseña') || error.includes('password'))
+                    ? error
+                    : password && !validatePassword(password)
+                      ? 'La contraseña debe tener al menos 6 caracteres'
+                      : ''
+                }
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
                       <IconButton
                         onClick={() => setShowPassword(!showPassword)}
                         edge="end"
+                        disabled={loading}
                       >
                         {showPassword ? <VisibilityOff /> : <Visibility />}
                       </IconButton>
@@ -336,50 +506,161 @@ const AuthForm: React.FC = () => {
                   ),
                 }}
               />
-              
+
+
+
               {/* Mensaje de error destacado */}
-              {error && (
-                <Box 
-                  sx={{ 
-                    mt: 2, 
+              {localStorage.getItem(errorKey) && (
+                <>
+
+                <Box
+                  sx={{
+                    mt: 2,
                     mb: 2,
-                    p: 2,
+                    p: 3,
                     bgcolor: 'error.50',
-                    border: '1px solid',
-                    borderColor: 'error.200',
-                    borderRadius: 1,
-                    textAlign: 'center'
+                    border: '2px solid',
+                    borderColor: 'error.main',
+                    borderRadius: 2,
+                    textAlign: 'center',
+                    boxShadow: '0 2px 8px rgba(211, 47, 47, 0.15)',
+                    position: 'relative',
+                    overflow: 'hidden'
                   }}
                 >
-                  <Typography variant="body2" color="error.main" sx={{ fontWeight: 500, mb: 2 }}>
-                    {error}
+                  {/* Indicador visual de error */}
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: 4,
+                      bgcolor: 'error.main'
+                    }}
+                  />
+
+                  <Typography
+                    variant="body1"
+                    color="error.main"
+                    sx={{
+                      fontWeight: 600,
+                      fontSize: '1rem',
+                      mb: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 1
+                    }}
+                  >
+                    <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+                    Error de Inicio de Sesión
                   </Typography>
-                  
+
+                  <Typography
+                    variant="body2"
+                    color="error.dark"
+                    sx={{
+                      fontWeight: 500,
+                      fontSize: '0.9rem',
+                      lineHeight: 1.4
+                    }}
+                  >
+                    {localStorage.getItem(errorKey)}
+                  </Typography>
+
+                  {/* Información adicional para errores específicos */}
+                  {(localStorage.getItem(errorKey)?.includes('Too Many Requests') || localStorage.getItem(errorKey)?.includes('429') || localStorage.getItem(errorKey)?.includes('Demasiados intentos')) && (
+                    <Box sx={{ mt: 2, p: 2, bgcolor: 'warning.50', borderRadius: 1, border: '1px solid', borderColor: 'warning.200' }}>
+                      <Typography variant="body2" color="warning.main" sx={{ fontWeight: 500, mb: 1 }}>
+                        💡 ¿Qué hacer si tienes muchos intentos fallidos?
+                      </Typography>
+                      <Typography variant="caption" color="warning.dark">
+                        • Espera 1-2 minutos antes de intentar nuevamente<br/>
+                        • Verifica que tu email y contraseña sean correctos<br/>
+                        • Si olvidaste tu contraseña, contacta al administrador
+                      </Typography>
+                    </Box>
+                  )}
+
+                  {(localStorage.getItem(errorKey)?.includes('Email o contraseña incorrectos') || localStorage.getItem(errorKey)?.includes('credenciales')) && (
+                    <Box sx={{ mt: 2, p: 2, bgcolor: 'info.50', borderRadius: 1, border: '1px solid', borderColor: 'info.200' }}>
+                      <Typography variant="body2" color="info.main" sx={{ fontWeight: 500, mb: 1 }}>
+                        💡 Consejos para acceder:
+                      </Typography>
+                      <Typography variant="caption" color="info.dark">
+                        • Asegúrate de que el email esté escrito correctamente<br/>
+                        • Las contraseñas distinguen mayúsculas y minúsculas<br/>
+                        • Si eres nuevo, usa la pestaña "Registrarse"
+                      </Typography>
+                    </Box>
+                  )}
+
                   {/* Botón de reset rate limit cuando sea necesario */}
-                  {(error.includes('Too Many Requests') || error.includes('429')) && (
+                  {(localStorage.getItem(errorKey)?.includes('Too Many Requests') || localStorage.getItem(errorKey)?.includes('429') || localStorage.getItem(errorKey)?.includes('Demasiados intentos')) && (
                     <Button
                       size="small"
-                      variant="outlined"
+                      variant="contained"
+                      color="error"
                       onClick={handleResetRateLimit}
                       disabled={loading}
                       startIcon={<span>🔄</span>}
-                      sx={{ mt: 1 }}
+                      sx={{
+                        mt: 2,
+                        fontWeight: 600,
+                        textTransform: 'none'
+                      }}
                     >
                       Resetear Rate Limit
                     </Button>
                   )}
                 </Box>
+                </>
               )}
               
               <Button
                 type="submit"
                 fullWidth
                 variant="contained"
-                sx={{ mt: 3, mb: 2 }}
-                disabled={loading}
-                startIcon={loading ? <CircularProgress size={20} /> : <span>🔐</span>}
+                onClick={(e) => {
+                  // No necesitamos preventDefault aquí porque el formulario ya lo maneja
+                }}
+                sx={{
+                  mt: 3,
+                  mb: 2,
+                  py: 1.5,
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                  textTransform: 'none',
+                  borderRadius: 2,
+                  boxShadow: loading ? 'none' : '0 4px 12px rgba(25, 118, 210, 0.3)',
+                  '&:hover': {
+                    boxShadow: loading ? 'none' : '0 6px 16px rgba(25, 118, 210, 0.4)',
+                    transform: loading ? 'none' : 'translateY(-1px)'
+                  },
+                  transition: 'all 0.2s ease'
+                }}
+                disabled={loading || !email || !password}
+                startIcon={
+                  loading ? (
+                    <CircularProgress size={20} color="inherit" />
+                  ) : (
+                    <span style={{ fontSize: '1.2rem' }}>🔐</span>
+                  )
+                }
               >
-                {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
+                {loading ? (
+                  <Box>
+                    <Typography variant="button" sx={{ fontWeight: 600 }}>
+                      Verificando credenciales...
+                    </Typography>
+                    <Typography variant="caption" sx={{ display: 'block', opacity: 0.8 }}>
+                      Esto puede tomar unos segundos
+                    </Typography>
+                  </Box>
+                ) : (
+                  'Iniciar Sesión'
+                )}
               </Button>
               <Button
                 fullWidth

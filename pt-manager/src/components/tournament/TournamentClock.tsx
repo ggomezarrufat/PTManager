@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress } from '@mui/material';
-import { PlayArrow, Pause, SkipNext, Timer, RadioButtonChecked, RadioButtonUnchecked } from '@mui/icons-material';
+import { PlayArrow, Pause, SkipNext, SkipPrevious, Timer, RadioButtonChecked, RadioButtonUnchecked } from '@mui/icons-material';
 import { useTournamentClock } from '../../hooks/useTournamentClock';
 import { useAuthStore } from '../../store/authStore';
+import { API_BASE_URL } from '../../services/apiService';
 
 interface TournamentClockProps {
   tournamentId: string;
@@ -27,12 +28,10 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
     tournamentId,
     userId: user?.id || '',
     onLevelChanged: (data) => {
-      console.log('🎯 ¡Cambio automático de nivel detectado!', data);
       // Aquí puedes agregar notificaciones o sonidos
       // Por ejemplo: toast.success(`¡Nivel ${data.new_level} iniciado!`);
     },
     onTournamentEnded: (data) => {
-      console.log('🏁 Torneo terminado:', data);
       // Aquí puedes agregar notificaciones o redirecciones
       // Por ejemplo: navigate('/tournaments');
     }
@@ -41,19 +40,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   // Obtener información adicional del reloj
   const clockInfo = getClockInfo();
 
-  // Estados para efectos visuales
-  const [showLevelUp, setShowLevelUp] = useState(false);
-  const [lastLevel, setLastLevel] = useState<number | null>(null);
 
-  // Efecto para mostrar animación de cambio de nivel
-  useEffect(() => {
-    if (clockState && clockState.current_level !== lastLevel && lastLevel !== null) {
-      setShowLevelUp(true);
-      const timer = setTimeout(() => setShowLevelUp(false), 3000);
-      return () => clearTimeout(timer);
-    }
-    setLastLevel(clockState?.current_level || null);
-  }, [clockState, lastLevel]);
 
   // Manejar pausa/reanudación
   const handleTogglePause = async () => {
@@ -67,6 +54,34 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   // Manejar siguiente nivel
   const handleNextLevel = async () => {
     await adjustTime(0); // Esto activará el avance automático en el servidor
+  };
+
+  // Manejar nivel anterior
+  const handlePreviousLevel = async () => {
+    if (!clockState || clockState.current_level <= 1) return;
+
+    try {
+      // Llamada a la API para cambiar al nivel anterior usando el endpoint del reloj
+      const response = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}/clock`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+        },
+        body: JSON.stringify({
+          current_level: clockState.current_level - 1
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al cambiar al nivel anterior');
+      }
+
+      // Nivel cambiado exitosamente
+    } catch (error) {
+      // Error al cambiar al nivel anterior
+      // Aquí podrías mostrar una notificación de error al usuario
+    }
   };
 
   // Calcular progreso del tiempo (simplificado)
@@ -164,15 +179,11 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
 
     return (
     <Card
-      className={`tournament-clock-card ${showLevelUp ? 'level-up-animation' : ''}`}
+      className="tournament-clock-card"
       sx={{
         mb: 3,
         position: 'relative',
-        overflow: 'hidden',
-        background: showLevelUp
-          ? 'linear-gradient(45deg, #4caf50 0%, #66bb6a 100%)'
-          : undefined,
-        transition: 'all 0.3s ease'
+        overflow: 'hidden'
       }}
     >
       <CardContent>
@@ -204,12 +215,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
           />
         </Box>
 
-        {/* Animación de cambio de nivel */}
-        {showLevelUp && (
-          <Alert severity="success" sx={{ mb: 2, animation: 'pulse 1s infinite' }}>
-            🎯 ¡Nivel {clockState.current_level} iniciado automáticamente!
-          </Alert>
-        )}
+
 
         {/* Tiempo restante */}
         <Box textAlign="center" mb={3}>
@@ -221,11 +227,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
               fontWeight: 'bold',
               fontFamily: 'monospace',
               textShadow: '2px 2px 4px rgba(0,0,0,0.1)',
-              color: clockInfo?.timeRemaining && clockInfo.timeRemaining <= 10
-                ? '#ff5722'
-                : clockState.is_paused
-                  ? '#ff9800'
-                  : 'primary.main'
+              color: 'primary.main'
             }}
           >
             {clockInfo ? clockInfo.formattedTime : formatTime(clockState.time_remaining_seconds)}
@@ -237,7 +239,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
             )}
           </Typography>
 
-          {/* Barra de progreso mejorada */}
+          {/* Barra de progreso simple */}
           <Box sx={{ mt: 2 }}>
             <LinearProgress
               variant="determinate"
@@ -249,15 +251,8 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
                 backgroundColor: 'rgba(0,0,0,0.1)',
                 '& .MuiLinearProgress-bar': {
                   borderRadius: 5,
-                  backgroundColor: clockState.is_paused
-                    ? '#ff9800'
-                    : clockInfo?.timeRemaining && clockInfo.timeRemaining <= 10
-                      ? '#ff5722'
-                      : '#4caf50',
-                  transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  boxShadow: clockInfo?.timeRemaining && clockInfo.timeRemaining <= 10
-                    ? '0 0 10px rgba(255, 87, 34, 0.5)'
-                    : 'none'
+                  backgroundColor: '#2196f3',
+                  transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                 }
               }}
             />
@@ -278,7 +273,17 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
               size="large"
               disabled={!isConnected}
             >
-              {clockState.is_paused ? '▶️ Reanudar' : '⏸️ Pausar'}
+              {clockState.is_paused ? 'Reanudar' : 'Pausar'}
+            </Button>
+
+            <Button
+              variant="outlined"
+              startIcon={<SkipPrevious />}
+              onClick={handlePreviousLevel}
+              color="secondary"
+              disabled={!isConnected || !clockState.is_paused || clockState.current_level <= 1}
+            >
+              Nivel Anterior
             </Button>
 
             <Button
@@ -288,7 +293,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
               color="secondary"
               disabled={!isConnected || !clockState.is_paused}
             >
-              🎯 Forzar Siguiente Nivel
+              Siguiente Nivel
             </Button>
           </Box>
         )}
@@ -356,11 +361,11 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
 
         {/* Información del sistema automático */}
         <Box mt={2} p={2} sx={{
-          backgroundColor: 'rgba(76, 175, 80, 0.1)',
+          backgroundColor: 'rgba(0, 0, 0, 0.04)',
           borderRadius: 2,
-          border: '1px solid rgba(76, 175, 80, 0.2)'
+          border: '1px solid rgba(0, 0, 0, 0.12)'
         }}>
-          <Typography variant="body2" color="success.main" textAlign="center">
+          <Typography variant="body2" color="text.secondary" textAlign="center">
             🎯 <strong>Sistema Automático Activo:</strong> El reloj avanzará automáticamente
             al siguiente nivel cuando se agote el tiempo ({clockInfo?.timeRemaining || clockState.time_remaining_seconds}s)
           </Typography>

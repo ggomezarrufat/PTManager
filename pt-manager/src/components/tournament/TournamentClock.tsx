@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
 import { PlayArrow, Pause, SkipNext, SkipPrevious, Timer, RadioButtonChecked, RadioButtonUnchecked } from '@mui/icons-material';
 import { useTournamentClock } from '../../hooks/useTournamentClock';
 import { useAuthStore } from '../../store/authStore';
-import { API_BASE_URL, tournamentService } from '../../services/apiService';
+import { tournamentService } from '../../services/apiService';
+import { API_URLS } from '../../config/api';
 
 interface TournamentClockProps {
   tournamentId: string;
@@ -12,6 +13,17 @@ interface TournamentClockProps {
 const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   const { user } = useAuthStore();
   const isAdmin = !!user?.is_admin;
+
+  // Memoizar los callbacks para evitar re-inicializaciones del hook
+  const handleLevelChanged = useCallback((data: any) => {
+    console.log('Nivel cambiado en componente:', data);
+    // Aquí podrías mostrar una notificación o actualizar la UI
+  }, []);
+
+  const handleTournamentEnded = useCallback((data: any) => {
+    console.log('Torneo terminado en componente:', data);
+    // Aquí podrías redirigir o mostrar un mensaje de fin de torneo
+  }, []);
 
   const {
     clockState,
@@ -27,14 +39,8 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   } = useTournamentClock({
     tournamentId,
     userId: user?.id || '',
-    onLevelChanged: (data) => {
-      // Aquí puedes agregar notificaciones o sonidos
-      // Por ejemplo: toast.success(`¡Nivel ${data.new_level} iniciado!`);
-    },
-    onTournamentEnded: (data) => {
-      // Aquí puedes agregar notificaciones o redirecciones
-      // Por ejemplo: navigate('/tournaments');
-    }
+    onLevelChanged: handleLevelChanged,
+    onTournamentEnded: handleTournamentEnded
   });
 
   // Obtener información adicional del reloj
@@ -72,7 +78,46 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
 
   // Manejar siguiente nivel
   const handleNextLevel = async () => {
-    await adjustTime(0); // Esto activará el avance automático en el servidor
+    if (!clockState) return;
+
+    try {
+      console.log(`➡️ Cambiando al siguiente nivel: ${clockState.current_level} → ${clockState.current_level + 1}`);
+
+      // Usar el endpoint específico para cambiar nivel
+      const response = await fetch(API_URLS.CLOCK.LEVEL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tournamentId,
+          newLevel: clockState.current_level + 1
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al cambiar al siguiente nivel');
+      }
+
+      const data = await response.json();
+      console.log('✅ Siguiente nivel establecido:', data);
+
+      // Forzar actualización inmediata del estado del reloj desde el servidor
+      if (data.success && data.new_level && data.new_time_seconds) {
+        console.log('🔄 Forzando actualización del reloj después del cambio de nivel');
+        console.log(`   Nuevo nivel: ${data.new_level}, Nuevo tiempo: ${data.new_time_seconds}s`);
+
+        // Forzar reconexión inmediata para obtener el estado actualizado del servidor
+        if (reconnect) {
+          // Llamar inmediatamente sin delay para actualización instantánea
+          reconnect();
+        }
+      }
+
+    } catch (error) {
+      console.error('❌ Error cambiando al siguiente nivel:', error);
+      // Aquí podrías mostrar una notificación de error al usuario
+    }
   };
 
   // Manejar nivel anterior
@@ -80,15 +125,17 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
     if (!clockState || clockState.current_level <= 1) return;
 
     try {
-      // Llamada a la API para cambiar al nivel anterior usando el endpoint del reloj
-      const response = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}/clock`, {
-        method: 'PUT',
+      console.log(`⬅️ Cambiando al nivel anterior: ${clockState.current_level} → ${clockState.current_level - 1}`);
+
+      // Usar el endpoint específico para cambiar nivel
+      const response = await fetch(API_URLS.CLOCK.LEVEL, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         },
         body: JSON.stringify({
-          current_level: clockState.current_level - 1
+          tournamentId,
+          newLevel: clockState.current_level - 1
         })
       });
 
@@ -96,9 +143,23 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
         throw new Error('Error al cambiar al nivel anterior');
       }
 
-      // Nivel cambiado exitosamente
+      const data = await response.json();
+      console.log('✅ Nivel anterior establecido:', data);
+
+      // Forzar actualización inmediata del estado del reloj desde el servidor
+      if (data.success && data.new_level && data.new_time_seconds) {
+        console.log('🔄 Forzando actualización del reloj después del cambio de nivel');
+        console.log(`   Nuevo nivel: ${data.new_level}, Nuevo tiempo: ${data.new_time_seconds}s`);
+
+        // Forzar reconexión inmediata para obtener el estado actualizado del servidor
+        if (reconnect) {
+          // Llamar inmediatamente sin delay para actualización instantánea
+          reconnect();
+        }
+      }
+
     } catch (error) {
-      // Error al cambiar al nivel anterior
+      console.error('❌ Error cambiando al nivel anterior:', error);
       // Aquí podrías mostrar una notificación de error al usuario
     }
   };

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { API_URLS } from '../config/api';
 
 interface ClockState {
   tournament_id: string;
@@ -40,12 +40,11 @@ export const useTournamentClock = ({
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected' | 'error'>('connecting');
 
-  const socketRef = useRef<Socket | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const localTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const isInitializedRef = useRef(false);
-  const reconnectAttemptsRef = useRef(0);
-  const maxReconnectAttempts = 5;
+  const lastKnownStateRef = useRef<ClockState | null>(null);
   const clockStateRef = useRef<ClockState | null>(null);
+  const isCleaningUpRef = useRef(false);
 
   // Función para detener el timer local
   const stopLocalTimer = useCallback(() => {
@@ -83,45 +82,139 @@ export const useTournamentClock = ({
     setClockState(prev => prev ? { ...prev, time_remaining_seconds: newSeconds } : null);
   }, []);
 
-  // Función para desconectar socket
-  const disconnectSocket = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.disconnect();
-      socketRef.current = null;
+  // Función para detener el polling
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
     }
     stopLocalTimer();
     setIsConnected(false);
     setConnectionStatus('disconnected');
   }, [stopLocalTimer]);
 
-  // Función para reconectar automáticamente
-  const attemptReconnect = useCallback(() => {
-    if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      console.error('❌ Máximo número de intentos de reconexión alcanzado');
-      setError('No se pudo conectar al servidor de reloj después de varios intentos');
-      setConnectionStatus('error');
-      return;
-    }
+  // Función para hacer polling del estado del reloj
+  const pollClockState = useCallback(async () => {
+    if (!tournamentId) return;
 
-    reconnectAttemptsRef.current++;
-    console.log(`🔄 Intentando reconectar... (intento ${reconnectAttemptsRef.current}/${maxReconnectAttempts})`);
+    try {
+      const response = await fetch(`${API_URLS.CLOCK.STATE}?tournamentId=${tournamentId}`);
+      const data = await response.json();
 
-    setTimeout(() => {
-      if (!socketRef.current?.connected) {
-        disconnectSocket();
-        // El useEffect se ejecutará nuevamente y creará una nueva conexión
+      if (data.success && data.clockState) {
+        const newClockState = data.clockState;
+
+        // Verificar si el estado cambió
+        const stateChanged = JSON.stringify(lastKnownStateRef.current) !== JSON.stringify(newClockState);
+
+        if (stateChanged) {
+          console.log('🔄 Estado del reloj actualizado desde servidor:', newClockState);
+          console.log('   Estado anterior:', lastKnownStateRef.current);
+          console.log('   Estado nuevo:', newClockState);
+          console.log('   ¿Cambio de nivel?', lastKnownStateRef.current?.current_level !== newClockState.current_level);
+          setClockState(newClockState);
+          clockStateRef.current = newClockState;
+          lastKnownStateRef.current = newClockState;
+
+          // Verificar si cambió el nivel
+          if (lastKnownStateRef.current && lastKnownStateRef.current.current_level !== newClockState.current_level) {
+            console.log(`🎯 ¡NIVEL CAMBIADO! ${lastKnownStateRef.current.current_level} → ${newClockState.current_level}`);
+            onLevelChanged?.({
+              tournament_id: newClockState.tournament_id,
+              new_level: newClockState.current_level,
+              duration_minutes: 0, // No tenemos esta info en el estado simple
+              blind_level: { level: newClockState.current_level, big_blind: 0, small_blind: 0, duration_minutes: 0 },
+              clock_state: newClockState
+            });
+          }
+
+          // Gestionar timer local según el estado del servidor
+          if (!newClockState.is_paused && newClockState.time_remaining_seconds > 0) {
+            updateLocalTimer(newClockState.time_remaining_seconds);
+            if (!localTimerRef.current) {
+              startLocalTimer(newClockState.time_remaining_seconds);
+            }
+          } else {
+            stopLocalTimer();
+          }
+        }
+
+        setIsConnected(true);
+        setConnectionStatus('connected');
+        setError(null);
+
+      } else if (data.error) {
+        console.error('Error obteniendo estado del reloj:', data.error);
+        setError(data.error);
+        setConnectionStatus('error');
       }
-    }, 2000 * reconnectAttemptsRef.current); // Backoff exponencial
-  }, [disconnectSocket]);
+
+    } catch (error) {
+      console.error('Error en polling del reloj:', error);
+      setError('Error de conexión con el servidor');
+      setConnectionStatus('error');
+    }
+  }, [tournamentId, startLocalTimer, stopLocalTimer, updateLocalTimer]);
+
+  // Función para unirse al torneo
+  const joinTournament = useCallback(async () => {
+    if (!tournamentId || !userId) return;
+
+    try {
+      console.log(`👥 Uniéndose al torneo ${tournamentId} como usuario ${userId}`);
+
+      const response = await fetch(API_URLS.CLOCK.JOIN, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tournamentId, userId })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('✅ Unido al torneo exitosamente');
+
+        if (data.clockState) {
+          console.log('🎯 Estado inicial del reloj:', data.clockState);
+          setClockState(data.clockState);
+          clockStateRef.current = data.clockState;
+          lastKnownStateRef.current = data.clockState;
+
+          // Iniciar timer local si es necesario
+          if (!data.clockState.is_paused && data.clockState.time_remaining_seconds > 0) {
+            startLocalTimer(data.clockState.time_remaining_seconds);
+          }
+        }
+
+        setIsConnected(true);
+        setConnectionStatus('connected');
+        setError(null);
+
+        // Iniciar polling cada 2 segundos
+        pollingIntervalRef.current = setInterval(pollClockState, 2000);
+
+      } else {
+        console.error('Error uniéndose al torneo:', data.error);
+        setError(data.error);
+        setConnectionStatus('error');
+      }
+
+    } catch (error) {
+      console.error('Error uniéndose al torneo:', error);
+      setError('Error de conexión con el servidor');
+      setConnectionStatus('error');
+    }
+  }, [tournamentId, userId, startLocalTimer, pollClockState, stopPolling]);
 
   useEffect(() => {
-    // Evitar múltiples inicializaciones
-    if (isInitializedRef.current) {
-      return;
-    }
+    console.log('🐛 useEffect principal: Ejecutando...');
+    console.log('   Dependencies:', { tournamentId, userId, joinTournament, stopPolling });
 
     if (!tournamentId || !userId) {
-      console.log('⏸️ Esperando tournamentId y userId para inicializar reloj');
+      console.log('⏸️ useEffect principal: Esperando tournamentId y userId para inicializar reloj');
+      stopPolling(); // Ensure polling is stopped if dependencies are not ready
       return;
     }
 
@@ -131,188 +224,19 @@ export const useTournamentClock = ({
       REACT_APP_API_URL: process.env.REACT_APP_API_URL,
       NODE_ENV: process.env.NODE_ENV
     });
-    isInitializedRef.current = true;
-    reconnectAttemptsRef.current = 0;
 
-    // Función para inicializar conexión
-    const initializeConnection = () => {
-      console.log('🔧 Iniciando configuración de conexión WebSocket...');
-      setConnectionStatus('connecting');
-      setError(null);
+    setConnectionStatus('connecting');
+    joinTournament();
 
-        // Conectar al WebSocket con configuración robusta
-      const socketUrl = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
-      console.log('🔌 Intentando conectar a WebSocket:', socketUrl);
-      console.log('🌐 URL completa:', window.location.href);
-
-      const socket = io(socketUrl, {
-        transports: ['websocket', 'polling'],
-        timeout: 5000,
-        forceNew: true
-      });
-
-      console.log('📡 Socket.IO configurado con opciones:', {
-        transports: ['websocket', 'polling'],
-        timeout: 5000,
-        forceNew: true
-      });
-
-      socketRef.current = socket;
-
-      // Eventos de conexión
-      socket.on('connect', () => {
-        console.log('✅ ¡CONEXIÓN WEBSOCKET ESTABLECIDA!');
-        console.log('   Socket ID:', socket.id);
-        console.log('   Connected:', socket.connected);
-        console.log('   Tournament ID:', tournamentId);
-        console.log('   User ID:', userId);
-
-        setIsConnected(true);
-        setConnectionStatus('connected');
-        setError(null);
-        reconnectAttemptsRef.current = 0;
-
-        // Unirse al torneo
-        console.log('🎯 Enviando solicitud de unión al torneo...');
-        socket.emit('join-tournament', { tournamentId, userId });
-      });
-
-      socket.on('connect_error', (error) => {
-        console.error('❌ ERROR DE CONEXIÓN WEBSOCKET:');
-        console.error('   Mensaje:', error.message);
-        console.error('   Stack:', error.stack);
-
-        // Verificar si es un error de Socket.IO con propiedades adicionales
-        if (error && typeof error === 'object') {
-          console.error('   Tipo:', (error as any).type || 'Desconocido');
-          console.error('   Descripción:', (error as any).description || 'Sin descripción');
-          console.error('   Contexto:', (error as any).context || 'Sin contexto');
-        }
-
-        setError(`Error de conexión: ${error.message}`);
-        setIsConnected(false);
-        setConnectionStatus('error');
-
-        // Intentar reconectar automáticamente
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          console.log('🔄 Intentando reconexión automática...');
-          attemptReconnect();
-        }
-      });
-
-      socket.on('disconnect', (reason) => {
-        console.log('🔌 Desconectado del servidor de reloj:', reason);
-        setIsConnected(false);
-        setConnectionStatus('disconnected');
-
-        // Intentar reconectar automáticamente si no fue intencional
-        if (reason === 'io server disconnect' || reason === 'transport close') {
-          attemptReconnect();
-        }
-      });
-
-      // Eventos del reloj con mejor manejo
-      socket.on('clock-sync', (state: ClockState) => {
-        console.log('🎯 ¡SINCRONIZACIÓN DE RELOJ RECIBIDA DESDE SERVIDOR!');
-        console.log('   Estado completo:', JSON.stringify(state, null, 2));
-        console.log('   Nivel:', state.current_level);
-        console.log('   Tiempo restante:', state.time_remaining_seconds, 'segundos');
-        console.log('   Estado:', state.is_paused ? 'PAUSADO' : 'ACTIVO');
-        console.log('   Última actualización:', state.last_updated);
-
-        setClockState(state);
-        clockStateRef.current = state;
-
-        // Solo iniciar timer local si el reloj está activo
-        if (!state.is_paused && state.time_remaining_seconds > 0) {
-          console.log('⏰ Iniciando timer local con:', state.time_remaining_seconds, 'segundos');
-          startLocalTimer(state.time_remaining_seconds);
-        } else {
-          console.log('⏸️ Reloj pausado o tiempo agotado, deteniendo timer local');
-          stopLocalTimer();
-        }
-      });
-
-      socket.on('clock-update', (state: ClockState) => {
-        console.log('⏰ Actualización del reloj desde servidor:', state);
-        setClockState(state);
-        clockStateRef.current = state;
-
-        // Gestionar timer local según el estado del servidor
-        if (!state.is_paused && state.time_remaining_seconds > 0) {
-          updateLocalTimer(state.time_remaining_seconds);
-          // Reiniciar timer local si es necesario
-          if (!localTimerRef.current) {
-            startLocalTimer(state.time_remaining_seconds);
-          }
-        } else {
-          stopLocalTimer();
-        }
-      });
-
-      socket.on('clock-pause-toggled', (data: { tournament_id: string; is_paused: boolean }) => {
-        console.log('⏸️ Estado de pausa cambiado:', data);
-        setClockState(prev => {
-          if (!prev) return null;
-
-          const newState = { ...prev, is_paused: data.is_paused };
-          clockStateRef.current = newState;
-
-          // Gestionar timer local
-          if (data.is_paused) {
-            stopLocalTimer();
-          } else if (newState.time_remaining_seconds > 0) {
-            startLocalTimer(newState.time_remaining_seconds);
-          }
-
-          return newState;
-        });
-      });
-
-      socket.on('level-changed', (data: LevelChangedData) => {
-        console.log('🎯 ¡CAMBIO AUTOMÁTICO DE NIVEL DETECTADO!');
-        console.log(`   Nivel anterior: ${clockStateRef.current?.current_level || 'desconocido'}`);
-        console.log(`   Nuevo nivel: ${data.new_level}`);
-        console.log(`   Duración: ${data.duration_minutes} minutos`);
-        console.log(`   Nuevo tiempo: ${data.clock_state.time_remaining_seconds}s`);
-
-        setClockState(data.clock_state);
-        clockStateRef.current = data.clock_state;
-
-        // Reiniciar timer local con el nuevo tiempo
-        if (!data.clock_state.is_paused && data.clock_state.time_remaining_seconds > 0) {
-          startLocalTimer(data.clock_state.time_remaining_seconds);
-        }
-
-        onLevelChanged?.(data);
-      });
-
-      socket.on('tournament-ended', (data: any) => {
-        console.log('🏁 Torneo terminado:', data);
-        setClockState(null);
-        clockStateRef.current = null;
-        stopLocalTimer();
-        onTournamentEnded?.(data);
-      });
-
-      socket.on('error', (error: { message: string }) => {
-        console.error('❌ Error del servidor de reloj:', error);
-        setError(`Error del servidor: ${error.message}`);
-      });
-    };
-
-    // Inicializar la conexión
-    initializeConnection();
-
-    // Cleanup mejorado
+    // Cleanup
     return () => {
-      console.log('🧹 Limpiando hook de reloj');
-      disconnectSocket();
+      console.log('🧹 Limpiando hook de reloj para tournamentId:', tournamentId);
+      stopPolling();
+      setClockState(null); // Clear clock state on cleanup
       clockStateRef.current = null;
-      isInitializedRef.current = false;
-      reconnectAttemptsRef.current = 0;
+      lastKnownStateRef.current = null;
     };
-  }, [tournamentId, userId]);
+  }, [tournamentId, userId, joinTournament, stopPolling]);
 
   // Mantener sincronizada la referencia con el estado del reloj
   useEffect(() => {
@@ -346,36 +270,155 @@ export const useTournamentClock = ({
   }, [clockState, formatTime]);
 
   // Métodos para control del reloj (solo para admins)
-  const pauseClock = useCallback(() => {
-    if (socketRef.current?.connected) {
-      socketRef.current.emit('pause-clock', { tournamentId });
-    } else {
-      console.error('❌ No se puede pausar: conexión WebSocket no disponible');
+  const pauseClock = useCallback(async () => {
+    if (!tournamentId) {
+      console.error('❌ TournamentId no disponible');
+      return;
     }
-  }, [tournamentId]);
 
-  const resumeClock = useCallback(() => {
-    if (socketRef.current?.connected) {
-      socketRef.current.emit('resume-clock', { tournamentId });
+    try {
+      console.log(`⏸️ Pausando reloj para torneo: ${tournamentId}`);
+
+      const response = await fetch(API_URLS.CLOCK.PAUSE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tournamentId })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('✅ Reloj pausado exitosamente');
+
+        // Actualizar estado local inmediatamente
+        setClockState(prev => {
+          if (!prev) return null;
+          const newState = { ...prev, is_paused: true };
+          clockStateRef.current = newState;
+          stopLocalTimer();
+          return newState;
+        });
+
     } else {
-      console.error('❌ No se puede reanudar: conexión WebSocket no disponible');
-    }
-  }, [tournamentId]);
+        console.error('❌ Error al pausar reloj:', data.error);
+        setError(data.error);
+      }
 
-  const adjustTime = useCallback((newSeconds: number) => {
-    if (socketRef.current?.connected) {
-      socketRef.current.emit('adjust-time', { tournamentId, newSeconds });
+    } catch (error) {
+      console.error('Error al pausar reloj:', error);
+      setError('Error de conexión al pausar reloj');
+    }
+  }, [tournamentId, stopLocalTimer]);
+
+  const resumeClock = useCallback(async () => {
+    if (!tournamentId) {
+      console.error('❌ TournamentId no disponible');
+      return;
+    }
+
+    try {
+      console.log(`▶️ Reanudando reloj para torneo: ${tournamentId}`);
+
+      const response = await fetch(API_URLS.CLOCK.RESUME, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tournamentId })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('✅ Reloj reanudado exitosamente');
+
+        // Actualizar estado local inmediatamente
+        setClockState(prev => {
+          if (!prev) return null;
+          const newState = { ...prev, is_paused: false };
+          clockStateRef.current = newState;
+
+          // Reiniciar timer si hay tiempo restante
+          if (newState.time_remaining_seconds > 0) {
+            startLocalTimer(newState.time_remaining_seconds);
+          }
+
+          return newState;
+        });
+
     } else {
-      console.error('❌ No se puede ajustar tiempo: conexión WebSocket no disponible');
-    }
-  }, [tournamentId]);
+        console.error('❌ Error al reanudar reloj:', data.error);
+        setError(data.error);
+      }
 
-  // Función para forzar reconexión
+    } catch (error) {
+      console.error('Error al reanudar reloj:', error);
+      setError('Error de conexión al reanudar reloj');
+    }
+  }, [tournamentId, startLocalTimer]);
+
+  const adjustTime = useCallback(async (newSeconds: number) => {
+    if (!tournamentId) {
+      console.error('❌ TournamentId no disponible');
+      return;
+    }
+
+    try {
+      console.log(`🔄 Ajustando tiempo del reloj para torneo: ${tournamentId} a ${newSeconds} segundos`);
+
+      const response = await fetch(API_URLS.CLOCK.ADJUST, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tournamentId, newSeconds })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('✅ Tiempo del reloj ajustado exitosamente');
+
+        // Actualizar estado local inmediatamente
+        setClockState(prev => {
+          if (!prev) return null;
+          const newState = { ...prev, time_remaining_seconds: newSeconds };
+          clockStateRef.current = newState;
+
+          // Reiniciar timer local
+          stopLocalTimer();
+          if (!newState.is_paused && newSeconds > 0) {
+            startLocalTimer(newSeconds);
+          }
+
+          return newState;
+        });
+
+    } else {
+        console.error('❌ Error al ajustar tiempo del reloj:', data.error);
+        setError(data.error);
+      }
+
+    } catch (error) {
+      console.error('Error al ajustar tiempo del reloj:', error);
+      setError('Error de conexión al ajustar tiempo del reloj');
+    }
+  }, [tournamentId, startLocalTimer, stopLocalTimer]);
+
+  // Función para forzar reconexión (reiniciar polling)
   const reconnect = useCallback(() => {
     console.log('🔄 Forzando reconexión manual...');
-    disconnectSocket();
-    // El useEffect se ejecutará nuevamente
-  }, [disconnectSocket]);
+    stopPolling();
+
+    // Reiniciar la conexión después de un breve delay
+    setTimeout(() => {
+      if (tournamentId && userId) {
+        joinTournament();
+      }
+    }, 1000);
+  }, [tournamentId, userId, stopPolling, joinTournament]);
 
   return {
     // Estados principales

@@ -188,6 +188,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </>
       )}
 
+      {/* PKT Manager Version */}
+      <Box sx={{ p: 2, textAlign: 'center' }}>
+        <Typography variant="caption" color="text.secondary">
+          PKT Manager 1.0
+        </Typography>
+      </Box>
+
       <Divider />
 
       {/* Información del usuario */}
@@ -211,19 +218,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </Box>
         
         {drawerOpen && user?.is_admin && (
-          <Chip 
-            label="Administrador" 
-            size="small" 
-            color="primary" 
+          <Chip
+            label="Administrador"
+            size="small"
+            color="primary"
             variant="outlined"
             sx={{ mb: 1 }}
           />
-        )}
-        
-        {drawerOpen && (
-          <Typography variant="caption" color="text.secondary">
-            Puntos: {user?.total_points || 0}
-          </Typography>
         )}
       </Box>
     </Box>

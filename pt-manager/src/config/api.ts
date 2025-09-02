@@ -1,5 +1,7 @@
 // Configuración de la API
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001';
+// En Vercel, usar las Serverless Functions locales, en desarrollo usar el backend
+const isVercel = process.env.NODE_ENV === 'production' && !process.env.REACT_APP_API_BASE_URL;
+const API_BASE_URL = isVercel ? '' : (process.env.REACT_APP_API_BASE_URL || 'http://localhost:3001');
 
 // Configuración de URLs de la API
 export const API_URLS = {

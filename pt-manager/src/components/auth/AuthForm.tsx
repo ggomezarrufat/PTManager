@@ -47,6 +47,7 @@ const AuthForm: React.FC = () => {
   const [success, setSuccess] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Debounce adicional
 
   // Ref para mantener el estado del error de manera síncrona
   const errorRef = useRef<string | null>(null);
@@ -143,12 +144,13 @@ const AuthForm: React.FC = () => {
 
 
 
-    // Verificar que no se haya enviado ya
-    if (loading) {
+    // Verificar que no se haya enviado ya (doble verificación)
+    if (loading || isSubmitting) {
       return;
     }
 
     setLoading(true);
+    setIsSubmitting(true);
     handleAuthError(null);
     setSuccess(null);
 
@@ -231,6 +233,7 @@ const AuthForm: React.FC = () => {
 
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -640,7 +643,7 @@ const AuthForm: React.FC = () => {
                   },
                   transition: 'all 0.2s ease'
                 }}
-                disabled={loading || !email || !password}
+                disabled={loading || isSubmitting || !email || !password}
                 startIcon={
                   loading ? (
                     <CircularProgress size={20} color="inherit" />

@@ -66,7 +66,7 @@ async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = localStorage.getItem('authToken');
-  const maxRetries = 3;
+  const maxRetries = 1; // Reducir de 3 a 1 para evitar rate limiting agresivo
   let retryCount = 0;
 
   // Debug de autenticación en producción
@@ -158,7 +158,7 @@ async function apiRequest<T>(
         // Manejar rate limiting (429) con retry automático
         if (response.status === 429 && retryCount < maxRetries) {
           retryCount++;
-          const delay = Math.pow(2, retryCount) * 1000; // Backoff exponencial: 2s, 4s, 8s
+          const delay = Math.pow(2, retryCount) * 3000; // Backoff exponencial: 3s, 6s (más tiempo entre reintentos)
           console.log(`🔄 Rate limit alcanzado, reintentando en ${delay/1000}s... (intento ${retryCount}/${maxRetries})`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;

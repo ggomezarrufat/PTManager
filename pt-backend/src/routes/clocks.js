@@ -1,8 +1,302 @@
 const express = require('express');
 const { body, param, validationResult } = require('express-validator');
 const { authenticateToken } = require('../middleware/auth');
-const { supabase } = require('../config/supabase');
+const { supabase, supabaseAdmin } = require('../config/supabase');
 const router = express.Router();
+
+/**
+ * @swagger
+ * /api/clock/state:
+ *   get:
+ *     summary: Obtener estado actual del reloj del torneo
+ *     tags: [Reloj]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: tournamentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del torneo
+ *     responses:
+ *       200:
+ *         description: Estado del reloj obtenido exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TournamentClock'
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Torneo no encontrado
+ */
+
+/**
+ * @swagger
+ * /api/clock/pause:
+ *   post:
+ *     summary: Pausar el reloj del torneo
+ *     tags: [Reloj]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - tournamentId
+ *             properties:
+ *               tournamentId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del torneo
+ *     responses:
+ *       200:
+ *         description: Reloj pausado exitosamente
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Torneo no encontrado
+ */
+
+/**
+ * @swagger
+ * /api/clock/resume:
+ *   post:
+ *     summary: Reanudar el reloj del torneo
+ *     tags: [Reloj]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - tournamentId
+ *             properties:
+ *               tournamentId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del torneo
+ *     responses:
+ *       200:
+ *         description: Reloj reanudado exitosamente
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Torneo no encontrado
+ */
+
+/**
+ * @swagger
+ * /api/clock/next-level:
+ *   post:
+ *     summary: Avanzar al siguiente nivel del torneo
+ *     tags: [Reloj]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - tournamentId
+ *             properties:
+ *               tournamentId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del torneo
+ *     responses:
+ *       200:
+ *         description: Nivel avanzado exitosamente
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Torneo no encontrado
+ */
+
+/**
+ * @swagger
+ * /api/clock/adjust:
+ *   post:
+ *     summary: Ajustar tiempo del reloj del torneo
+ *     tags: [Reloj]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - tournamentId
+ *               - adjustment_seconds
+ *             properties:
+ *               tournamentId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del torneo
+ *               adjustment_seconds:
+ *                 type: integer
+ *                 description: Segundos a agregar (positivo) o quitar (negativo)
+ *     responses:
+ *       200:
+ *         description: Tiempo ajustado exitosamente
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Torneo no encontrado
+ */
+
+/**
+ * @swagger
+ * /api/clock/join:
+ *   post:
+ *     summary: Unirse al reloj del torneo como administrador
+ *     tags: [Reloj]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - tournamentId
+ *             properties:
+ *               tournamentId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del torneo
+ *     responses:
+ *       200:
+ *         description: Unido al reloj exitosamente
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Torneo no encontrado
+ */
+
+/**
+ * @swagger
+ * /api/clock/sync:
+ *   post:
+ *     summary: Sincronizar estado del reloj manualmente
+ *     tags: [Reloj]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - tournamentId
+ *             properties:
+ *               tournamentId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del torneo
+ *     responses:
+ *       200:
+ *         description: Reloj sincronizado exitosamente
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Torneo no encontrado
+ */
+
+/**
+ * Función helper para obtener o crear el reloj del torneo
+ * @param {string} tournamentId - ID del torneo
+ * @returns {Object} El registro del reloj
+ */
+async function getOrCreateTournamentClock(tournamentId) {
+  try {
+    // Primero intentar obtener el reloj existente
+    const { data: existingClock, error: fetchError } = await supabase
+      .from('tournament_clocks')
+      .select('*')
+      .eq('tournament_id', tournamentId)
+      .single();
+
+    // Si existe, devolverlo
+    if (existingClock && !fetchError) {
+      return existingClock;
+    }
+
+    // Si no existe, obtener información del torneo para inicializar el reloj
+    const { data: tournament, error: tournamentError } = await supabase
+      .from('tournaments')
+      .select('blind_structure, name')
+      .eq('id', tournamentId)
+      .single();
+
+    if (tournamentError || !tournament) {
+      throw new Error('Torneo no encontrado');
+    }
+
+    // Valores por defecto
+    let currentLevel = 1;
+    let timeRemainingSeconds = 1200; // 20 minutos por defecto
+
+    // Si tiene estructura de blinds, usar el primer nivel
+    if (tournament.blind_structure && tournament.blind_structure.length > 0) {
+      const firstLevel = tournament.blind_structure[0];
+      timeRemainingSeconds = firstLevel.duration_minutes ? firstLevel.duration_minutes * 60 : 1200;
+    }
+
+    // Crear el registro del reloj
+    const clockData = {
+      tournament_id: tournamentId,
+      current_level: currentLevel,
+      time_remaining_seconds: timeRemainingSeconds,
+      is_paused: false,
+      total_pause_time_seconds: 0,
+      last_updated: new Date().toISOString()
+    };
+
+    const { data: newClock, error: insertError } = await supabaseAdmin
+      .from('tournament_clocks')
+      .insert(clockData)
+      .select()
+      .single();
+
+    if (insertError) {
+      throw insertError;
+    }
+
+    console.log(`🆕 Reloj creado automáticamente para torneo: ${tournament.name} (${tournamentId})`);
+    return newClock;
+
+  } catch (error) {
+    console.error('Error obteniendo/creando reloj del torneo:', error);
+    throw error;
+  }
+}
 
 /**
  * @swagger
@@ -552,26 +846,17 @@ router.post('/clock/join',
         return res.status(400).json({ error: 'El torneo no está activo' });
       }
 
-      // Obtener estado actual del reloj
-      const { data: clockData, error: clockError } = await supabase
-        .from('tournament_clocks')
-        .select('*')
-        .eq('tournament_id', tournamentId)
-        .single();
+      // Obtener o crear el reloj del torneo
+      const clockData = await getOrCreateTournamentClock(tournamentId);
 
-      let clockState = null;
-      if (!clockError && clockData) {
-        clockState = {
-          tournament_id: clockData.tournament_id,
-          current_level: clockData.current_level,
-          time_remaining_seconds: clockData.time_remaining_seconds,
-          is_paused: clockData.is_paused,
-          last_updated: clockData.last_updated
-        };
-        console.log(`✅ Estado del reloj obtenido: ${tournamentId} (${clockState.is_paused ? 'PAUSADO' : 'ACTIVO'})`);
-      } else {
-        console.log(`❌ No se pudo encontrar reloj para torneo: ${tournamentId}`);
-      }
+      const clockState = {
+        tournament_id: clockData.tournament_id,
+        current_level: clockData.current_level,
+        time_remaining_seconds: clockData.time_remaining_seconds,
+        is_paused: clockData.is_paused,
+        last_updated: clockData.last_updated
+      };
+      console.log(`✅ Estado del reloj obtenido: ${tournamentId} (${clockState.is_paused ? 'PAUSADO' : 'ACTIVO'})`);
 
       console.log(`✅ Usuario ${userId} se unió exitosamente al torneo ${tournament.name}`);
 
@@ -621,32 +906,8 @@ router.get('/clock/state',
 
       console.log(`🔍 Consultando estado del reloj para torneo: ${tournamentId}`);
 
-      // Obtener estado actual del reloj
-      const { data: clockData, error: clockError } = await supabase
-        .from('tournament_clocks')
-        .select('*')
-        .eq('tournament_id', tournamentId)
-        .single();
-
-      if (clockError) {
-        if (clockError.code === 'PGRST116') {
-          // No encontrado
-          return res.status(404).json({
-            error: 'Reloj no encontrado para este torneo'
-          });
-        }
-        console.error('Error obteniendo reloj:', clockError);
-        return res.status(500).json({
-          error: 'Error obteniendo estado del reloj',
-          details: clockError.message
-        });
-      }
-
-      if (!clockData) {
-        return res.status(404).json({
-          error: 'No hay reloj configurado para este torneo'
-        });
-      }
+      // Obtener o crear el reloj del torneo
+      const clockData = await getOrCreateTournamentClock(tournamentId);
 
       const clockState = {
         tournament_id: clockData.tournament_id,
@@ -693,7 +954,8 @@ router.get('/clock/state',
  */
 router.post('/clock/pause',
   [
-    body('tournamentId').isUUID().withMessage('Tournament ID debe ser un UUID válido')
+    body('tournamentId').isUUID().withMessage('Tournament ID debe ser un UUID válido'),
+    body('currentTimeSeconds').optional().isInt({ min: 0 }).withMessage('currentTimeSeconds debe ser un número entero positivo')
   ],
   async (req, res, next) => {
     try {
@@ -706,17 +968,50 @@ router.post('/clock/pause',
         });
       }
 
-      const { tournamentId } = req.body;
+      const { tournamentId, currentTimeSeconds } = req.body;
 
-      console.log(`⏸️ Pausando reloj para torneo: ${tournamentId}`);
+      console.log(`⏸️ Pausando reloj para torneo: ${tournamentId}${currentTimeSeconds !== undefined ? ` en ${currentTimeSeconds}s` : ''}`);
+
+      // Obtener o crear el reloj del torneo
+      const clock = await getOrCreateTournamentClock(tournamentId);
+
+      // Preparar actualización del estado del reloj
+      const now = new Date();
+      const updateData = {
+        is_paused: true,
+        last_updated: now.toISOString()
+      };
+
+      // Recalcular tiempo restante basado en el tiempo transcurrido desde la última actualización
+      if (clock && clock.last_updated && !clock.is_paused) {
+        const lastUpdated = new Date(clock.last_updated);
+        const secondsElapsed = Math.floor((now - lastUpdated) / 1000);
+
+        // Solo calcular si han pasado al menos 2 segundos (para evitar cálculos con el servicio automático)
+        if (secondsElapsed >= 2) {
+          // Calcular tiempo restante real
+          const actualRemainingSeconds = Math.max(0, clock.time_remaining_seconds - secondsElapsed);
+          updateData.time_remaining_seconds = actualRemainingSeconds;
+          console.log(`⏱️ Tiempo recalculado: ${clock.time_remaining_seconds}s - ${secondsElapsed}s = ${actualRemainingSeconds}s`);
+        } else {
+          // Si no ha pasado suficiente tiempo, mantener el tiempo actual
+          updateData.time_remaining_seconds = clock.time_remaining_seconds;
+          console.log(`⏱️ Tiempo sin cambios significativos: manteniendo ${clock.time_remaining_seconds}s`);
+        }
+      } else if (currentTimeSeconds !== undefined) {
+        // Si se proporciona tiempo específico, usarlo
+        updateData.time_remaining_seconds = currentTimeSeconds;
+        console.log(`⏱️ Usando tiempo proporcionado: ${currentTimeSeconds}s`);
+      } else if (clock) {
+        // Mantener el tiempo actual
+        updateData.time_remaining_seconds = clock.time_remaining_seconds;
+        console.log(`⏱️ Manteniendo tiempo actual: ${clock.time_remaining_seconds}s`);
+      }
 
       // Actualizar estado del reloj
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('tournament_clocks')
-        .update({
-          is_paused: true,
-          last_updated: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('tournament_id', tournamentId);
 
       if (error) {
@@ -730,7 +1025,8 @@ router.post('/clock/pause',
         success: true,
         message: 'Reloj pausado exitosamente',
         tournament_id: tournamentId,
-        is_paused: true
+        is_paused: true,
+        time_remaining_seconds: currentTimeSeconds
       });
 
     } catch (error) {
@@ -763,7 +1059,8 @@ router.post('/clock/pause',
  */
 router.post('/clock/resume',
   [
-    body('tournamentId').isUUID().withMessage('Tournament ID debe ser un UUID válido')
+    body('tournamentId').isUUID().withMessage('Tournament ID debe ser un UUID válido'),
+    body('currentTimeSeconds').optional().isInt({ min: 0 }).withMessage('currentTimeSeconds debe ser un número entero positivo')
   ],
   async (req, res, next) => {
     try {
@@ -776,17 +1073,34 @@ router.post('/clock/resume',
         });
       }
 
-      const { tournamentId } = req.body;
+      const { tournamentId, currentTimeSeconds } = req.body;
+      const now = new Date();
 
-      console.log(`▶️ Reanudando reloj para torneo: ${tournamentId}`);
+      console.log(`▶️ Reanudando reloj para torneo: ${tournamentId}${currentTimeSeconds !== undefined ? ` en ${currentTimeSeconds}s` : ''}`);
+
+      // Obtener o crear el reloj del torneo
+      const clock = await getOrCreateTournamentClock(tournamentId);
+
+      // Preparar actualización del estado del reloj
+      const updateData = {
+        is_paused: false,
+        last_updated: now.toISOString()
+      };
+
+      // Si se proporciona el tiempo actual, actualizarlo también
+      if (currentTimeSeconds !== undefined) {
+        updateData.time_remaining_seconds = currentTimeSeconds;
+        console.log(`⏱️ Estableciendo tiempo inicial: ${currentTimeSeconds}s`);
+      } else {
+        // Si no se proporciona tiempo, mantener el tiempo actual
+        updateData.time_remaining_seconds = clock.time_remaining_seconds;
+        console.log(`⏱️ Manteniendo tiempo actual: ${clock.time_remaining_seconds}s`);
+      }
 
       // Actualizar estado del reloj
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('tournament_clocks')
-        .update({
-          is_paused: false,
-          last_updated: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('tournament_id', tournamentId);
 
       if (error) {
@@ -800,7 +1114,8 @@ router.post('/clock/resume',
         success: true,
         message: 'Reloj reanudado exitosamente',
         tournament_id: tournamentId,
-        is_paused: false
+        is_paused: false,
+        time_remaining_seconds: currentTimeSeconds
       });
 
     } catch (error) {
@@ -854,6 +1169,9 @@ router.post('/clock/level',
 
       console.log(`🔄 Cambiando nivel del reloj para torneo: ${tournamentId} a nivel ${newLevel}`);
 
+      // Obtener o crear el reloj del torneo
+      const currentClock = await getOrCreateTournamentClock(tournamentId);
+
       // Obtener información del torneo para determinar la duración del nuevo nivel
       const { data: tournament, error: tournamentError } = await supabase
         .from('tournaments')
@@ -874,13 +1192,20 @@ router.post('/clock/level',
         levelTime = (levelData.duration_minutes || 20) * 60;
       }
 
+      // Determinar si mantener pausado: si es nivel anterior, mantener pausado
+      const isGoingBack = newLevel < currentClock.current_level;
+      const shouldPause = isGoingBack ? true : false;
+
+      console.log(`📊 Cambio de nivel: ${currentClock.current_level} → ${newLevel}`);
+      console.log(`⏸️ Mantener pausado: ${shouldPause} (nivel anterior: ${isGoingBack})`);
+
       // Actualizar nivel y tiempo del reloj
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('tournament_clocks')
         .update({
           current_level: newLevel,
           time_remaining_seconds: levelTime,
-          is_paused: false, // Reiniciar automáticamente cuando se cambia el nivel
+          is_paused: shouldPause, // Mantener pausado si es nivel anterior
           last_updated: new Date().toISOString()
         })
         .eq('tournament_id', tournamentId);
@@ -891,13 +1216,17 @@ router.post('/clock/level',
       }
 
       console.log(`✅ Nivel del reloj cambiado exitosamente a ${newLevel} (${levelTime}s)`);
+      console.log(`${shouldPause ? '⏸️ Reloj mantenido pausado' : '▶️ Reloj reanudado automáticamente'}`);
 
       res.status(200).json({
         success: true,
-        message: 'Nivel del reloj cambiado exitosamente',
+        message: shouldPause
+          ? 'Nivel del reloj cambiado exitosamente - reloj mantenido pausado'
+          : 'Nivel del reloj cambiado exitosamente',
         tournament_id: tournamentId,
         new_level: newLevel,
-        new_time_seconds: levelTime
+        new_time_seconds: levelTime,
+        is_paused: shouldPause
       });
 
     } catch (error) {
@@ -951,8 +1280,11 @@ router.post('/clock/adjust',
 
       console.log(`🔄 Ajustando tiempo del reloj para torneo: ${tournamentId} a ${newSeconds} segundos`);
 
+      // Obtener o crear el reloj del torneo
+      const clock = await getOrCreateTournamentClock(tournamentId);
+
       // Actualizar tiempo del reloj
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('tournament_clocks')
         .update({
           time_remaining_seconds: newSeconds,

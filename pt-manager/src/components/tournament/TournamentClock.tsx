@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper } from '@mui/material';
-import { PlayArrow, Pause, SkipNext, SkipPrevious, Timer, RadioButtonChecked, RadioButtonUnchecked } from '@mui/icons-material';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { PlayArrow, Pause, SkipNext, SkipPrevious, People, Assessment, Stop } from '@mui/icons-material';
 import { useTournamentClock } from '../../hooks/useTournamentClock';
 import { useAuthStore } from '../../store/authStore';
-import { tournamentService } from '../../services/apiService';
+import { tournamentService, playerService, rebuyService, addonService, API_BASE_URL } from '../../services/apiService';
 import { API_URLS } from '../../config/api';
+import { TournamentPlayer } from '../../types';
+import PlayerListItem from './PlayerListItem';
+import { useNavigate } from 'react-router-dom';
 
 interface TournamentClockProps {
   tournamentId: string;
@@ -13,6 +16,7 @@ interface TournamentClockProps {
 const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   const { user } = useAuthStore();
   const isAdmin = !!user?.is_admin;
+  const navigate = useNavigate();
 
   // Memoizar los callbacks para evitar re-inicializaciones del hook
   const handleLevelChanged = useCallback((data: any) => {
@@ -27,14 +31,13 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
 
   const {
     clockState,
+    setClockState,
     isConnected,
-    connectionStatus,
     error,
     formatTime,
     getClockInfo,
     pauseClock,
     resumeClock,
-    adjustTime,
     reconnect
   } = useTournamentClock({
     tournamentId,
@@ -48,6 +51,14 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
 
   // Estado para la información del torneo
   const [tournamentInfo, setTournamentInfo] = useState<any>(null);
+
+  // Estado para los jugadores del torneo
+  const [players, setPlayers] = useState<TournamentPlayer[]>([]);
+  const [loadingPlayers, setLoadingPlayers] = useState(false);
+
+  // Estado para el diálogo de confirmación de finalización
+  const [finishTournamentDialogOpen, setFinishTournamentDialogOpen] = useState(false);
+  const [finishingTournament, setFinishingTournament] = useState(false);
 
   // Cargar información del torneo
   useEffect(() => {
@@ -65,6 +76,27 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
     }
   }, [tournamentId]);
 
+  // Cargar jugadores del torneo
+  const loadPlayers = useCallback(async () => {
+    if (!tournamentId || !isAdmin) return;
+
+    setLoadingPlayers(true);
+    try {
+      const response = await playerService.getTournamentPlayers(tournamentId);
+      setPlayers(response.players || []);
+    } catch (error) {
+      console.error('Error cargando jugadores:', error);
+      setPlayers([]);
+    } finally {
+      setLoadingPlayers(false);
+    }
+  }, [tournamentId, isAdmin]);
+
+  // Cargar jugadores cuando el componente se monta o cambia el tournamentId
+  useEffect(() => {
+    loadPlayers();
+  }, [loadPlayers]);
+
 
 
   // Manejar pausa/reanudación
@@ -77,46 +109,106 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   };
 
   // Manejar siguiente nivel
-  const handleNextLevel = async () => {
+  const handleNextLevel = useCallback(async () => {
     if (!clockState) return;
 
-    try {
-      console.log(`➡️ Cambiando al siguiente nivel: ${clockState.current_level} → ${clockState.current_level + 1}`);
+    const newLevel = clockState.current_level + 1;
+    console.log(`➡️ Cambiando al siguiente nivel: ${clockState.current_level} → ${newLevel}`);
 
-      // Usar el endpoint específico para cambiar nivel
-      const response = await fetch(API_URLS.CLOCK.LEVEL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tournamentId,
-          newLevel: clockState.current_level + 1
-        })
+    if (isAdmin) {
+      // Administrador: cambiar nivel en el servidor
+      try {
+        const response = await fetch(API_URLS.CLOCK.LEVEL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            tournamentId,
+            newLevel: newLevel
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Error al cambiar al siguiente nivel');
+        }
+
+        const data = await response.json();
+        console.log('✅ Siguiente nivel establecido por admin:', data);
+
+        // Mostrar mensaje específico si el reloj se mantiene pausado
+        if (data.is_paused) {
+          console.log('⏸️ Reloj mantenido pausado después del cambio de nivel');
+        }
+
+        // Sincronizar inmediatamente el estado del reloj con el servidor
+        if (data.success && data.new_level && data.new_time_seconds) {
+          console.log('✅ Estado del servidor actualizado correctamente');
+          console.log(`   Nuevo nivel: ${data.new_level}, Nuevo tiempo: ${data.new_time_seconds}s`);
+
+          // Forzar sincronización inmediata del reloj
+          if (reconnect) {
+            console.log('🔄 Sincronizando estado del reloj inmediatamente...');
+            await reconnect();
+          }
+        }
+
+      } catch (error) {
+        console.error('❌ Error cambiando al siguiente nivel:', error);
+        // Aquí podrías mostrar una notificación de error al usuario
+      }
+    } else {
+      // Usuario normal: solo actualizar estado local
+      console.log('👤 Usuario normal cambiando nivel localmente (no afecta servidor)');
+
+      // Actualizar estado local para mostrar el cambio visual
+      const newTime = 1200; // 20 minutos por defecto
+      setClockState(prev => {
+        if (!prev) return null;
+        const newState = {
+          ...prev,
+          current_level: newLevel,
+          time_remaining_seconds: newTime,
+          last_updated: new Date().toISOString()
+        };
+        console.log(`🔄 Estado local actualizado: Nivel ${newLevel}, ${newTime}s`);
+        return newState;
       });
 
-      if (!response.ok) {
-        throw new Error('Error al cambiar al siguiente nivel');
+      // Notificar el cambio de nivel
+      if (handleLevelChanged) {
+        handleLevelChanged({
+          new_level: newLevel,
+          new_time_seconds: newTime,
+          local_change: true // Indicar que es un cambio local
+        });
       }
+    }
+  }, [clockState, isAdmin, tournamentId, reconnect, handleLevelChanged, setClockState]);
 
-      const data = await response.json();
-      console.log('✅ Siguiente nivel establecido:', data);
+  // Manejar finalización del torneo
+  const handleFinishTournament = async () => {
+    if (!tournamentId || !isAdmin) return;
 
-      // Forzar actualización inmediata del estado del reloj desde el servidor
-      if (data.success && data.new_level && data.new_time_seconds) {
-        console.log('🔄 Forzando actualización del reloj después del cambio de nivel');
-        console.log(`   Nuevo nivel: ${data.new_level}, Nuevo tiempo: ${data.new_time_seconds}s`);
-
-        // Forzar reconexión inmediata para obtener el estado actualizado del servidor
-        if (reconnect) {
-          // Llamar inmediatamente sin delay para actualización instantánea
-          reconnect();
-        }
-      }
-
+    setFinishingTournament(true);
+    try {
+      console.log('🔄 Intentando finalizar torneo:', tournamentId);
+      
+      await tournamentService.finishTournament(tournamentId);
+      
+      console.log('✅ Torneo finalizado exitosamente');
+      
+      // Mostrar mensaje de éxito y redirigir
+      alert('🎉 Torneo finalizado exitosamente');
+      
+      // Redirigir a la lista de torneos
+      navigate('/tournaments');
     } catch (error) {
-      console.error('❌ Error cambiando al siguiente nivel:', error);
-      // Aquí podrías mostrar una notificación de error al usuario
+      console.error('❌ Error finalizando torneo:', error);
+      alert(`❌ Error al finalizar el torneo: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
+      setFinishingTournament(false);
+      setFinishTournamentDialogOpen(false);
     }
   };
 
@@ -124,44 +216,239 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   const handlePreviousLevel = async () => {
     if (!clockState || clockState.current_level <= 1) return;
 
-    try {
-      console.log(`⬅️ Cambiando al nivel anterior: ${clockState.current_level} → ${clockState.current_level - 1}`);
+    const newLevel = clockState.current_level - 1;
+    console.log(`⬅️ Cambiando al nivel anterior: ${clockState.current_level} → ${newLevel}`);
 
-      // Usar el endpoint específico para cambiar nivel
-      const response = await fetch(API_URLS.CLOCK.LEVEL, {
-        method: 'POST',
+    if (isAdmin) {
+      // Administrador: cambiar nivel en el servidor
+      try {
+        const response = await fetch(API_URLS.CLOCK.LEVEL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            tournamentId,
+            newLevel: newLevel
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Error al cambiar al nivel anterior');
+        }
+
+        const data = await response.json();
+        console.log('✅ Nivel anterior establecido por admin:', data);
+
+        // Mostrar mensaje específico si el reloj se mantiene pausado
+        if (data.is_paused) {
+          console.log('⏸️ Reloj mantenido pausado después del cambio de nivel');
+        }
+
+        // Sincronizar inmediatamente el estado del reloj con el servidor
+        if (data.success && data.new_level && data.new_time_seconds) {
+          console.log('✅ Estado del servidor actualizado correctamente');
+          console.log(`   Nuevo nivel: ${data.new_level}, Nuevo tiempo: ${data.new_time_seconds}s`);
+
+          // Forzar sincronización inmediata del reloj
+          if (reconnect) {
+            console.log('🔄 Sincronizando estado del reloj inmediatamente...');
+            await reconnect();
+          }
+        }
+
+      } catch (error) {
+        console.error('❌ Error cambiando al nivel anterior:', error);
+        // Aquí podrías mostrar una notificación de error al usuario
+      }
+    } else {
+      // Usuario normal: solo actualizar estado local
+      console.log('👤 Usuario normal cambiando nivel localmente (no afecta servidor)');
+
+      // Actualizar estado local para mostrar el cambio visual
+      const newTime = 1200; // 20 minutos por defecto
+      setClockState(prev => {
+        if (!prev) return null;
+        const newState = {
+          ...prev,
+          current_level: newLevel,
+          time_remaining_seconds: newTime,
+          last_updated: new Date().toISOString(),
+          is_paused: true // Mantener pausado cuando se va al nivel anterior
+        };
+        console.log(`🔄 Estado local actualizado: Nivel ${newLevel}, ${newTime}s (pausado)`);
+        return newState;
+      });
+
+      // Notificar el cambio de nivel
+      if (handleLevelChanged) {
+        handleLevelChanged({
+          new_level: newLevel,
+          new_time_seconds: newTime,
+          is_paused: true,
+          local_change: true // Indicar que es un cambio local
+        });
+      }
+    }
+  };
+
+  // Funciones para manejar acciones de jugadores
+  const handleConfirmRegistration = async (playerId: string) => {
+    try {
+      // Confirmar inscripción con registro del admin
+      console.log('🔄 Intentando confirmar inscripción:', {
+        playerId,
+        initial_chips: tournamentInfo?.initial_chips || 0,
+        userId: user?.id,
+        userName: user?.name,
+        isAuthenticated: !!user
+      });
+
+      if (!user?.id) {
+        throw new Error('Usuario no autenticado - no se puede confirmar la inscripción');
+      }
+
+      await fetch(`${API_BASE_URL}/api/players/${playerId}/confirm-registration`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
         },
         body: JSON.stringify({
-          tournamentId,
-          newLevel: clockState.current_level - 1
+          initial_chips: tournamentInfo?.initial_chips || 0,
+          admin_user_id: user.id
         })
       });
 
-      if (!response.ok) {
-        throw new Error('Error al cambiar al nivel anterior');
-      }
-
-      const data = await response.json();
-      console.log('✅ Nivel anterior establecido:', data);
-
-      // Forzar actualización inmediata del estado del reloj desde el servidor
-      if (data.success && data.new_level && data.new_time_seconds) {
-        console.log('🔄 Forzando actualización del reloj después del cambio de nivel');
-        console.log(`   Nuevo nivel: ${data.new_level}, Nuevo tiempo: ${data.new_time_seconds}s`);
-
-        // Forzar reconexión inmediata para obtener el estado actualizado del servidor
-        if (reconnect) {
-          // Llamar inmediatamente sin delay para actualización instantánea
-          reconnect();
-        }
-      }
-
+      // Recargar la lista de jugadores
+      await loadPlayers();
+      console.log('✅ Inscripción confirmada para jugador:', playerId, 'por admin:', user?.name);
     } catch (error) {
-      console.error('❌ Error cambiando al nivel anterior:', error);
-      // Aquí podrías mostrar una notificación de error al usuario
+      console.error('❌ Error confirmando inscripción:', error);
+      // Aquí podrías mostrar una notificación de error
     }
+  };
+
+  const handleRebuy = async (playerId: string, amount: number, chips: number) => {
+    try {
+      console.log('🔄 Intentando registrar rebuy:', {
+        playerId,
+        amount,
+        chips,
+        userId: user?.id,
+        userName: user?.name,
+        isAuthenticated: !!user
+      });
+
+      if (!user?.id) {
+        throw new Error('Usuario no autenticado - no se puede registrar el rebuy');
+      }
+
+      await rebuyService.registerRebuy(playerId, {
+        amount,
+        chips_received: chips,
+        admin_user_id: user.id
+      });
+      // Recargar la lista de jugadores para actualizar las fichas
+      await loadPlayers();
+      console.log('✅ Recompra registrada para jugador:', playerId, 'por admin:', user?.name);
+    } catch (error) {
+      console.error('❌ Error registrando recompra:', error);
+      // Aquí podrías mostrar una notificación de error
+    }
+  };
+
+  const handleAddon = async (playerId: string, amount: number, chips: number) => {
+    try {
+      console.log('🔄 Intentando registrar addon:', {
+        playerId,
+        amount,
+        chips,
+        userId: user?.id,
+        userName: user?.name,
+        isAuthenticated: !!user
+      });
+
+      if (!user?.id) {
+        throw new Error('Usuario no autenticado - no se puede registrar el addon');
+      }
+
+      await addonService.registerAddon(playerId, {
+        amount,
+        chips_received: chips,
+        admin_user_id: user.id
+      });
+      // Recargar la lista de jugadores para actualizar las fichas
+      await loadPlayers();
+      console.log('✅ Addon registrado para jugador:', playerId, 'por admin:', user?.name);
+    } catch (error) {
+      console.error('❌ Error registrando addon:', error);
+      // Aquí podrías mostrar una notificación de error
+    }
+  };
+
+  const handleEliminate = async (playerId: string, position: number, points: number) => {
+    try {
+      console.log('🔄 Intentando eliminar jugador:', {
+        playerId,
+        position,
+        points,
+        userId: user?.id,
+        userName: user?.name,
+        isAuthenticated: !!user
+      });
+
+      if (!user?.id) {
+        throw new Error('Usuario no autenticado - no se puede eliminar el jugador');
+      }
+
+      console.log('📤 Llamando a playerService.eliminatePlayer con:', {
+        playerId,
+        position,
+        eliminatedBy: user.id,
+        pointsEarned: points
+      });
+
+      const result = await playerService.eliminatePlayer(playerId, position, user.id, points);
+      
+      console.log('📥 Respuesta del servicio:', result);
+      
+      // Recargar la lista de jugadores
+      await loadPlayers();
+      console.log('✅ Jugador eliminado:', playerId, 'Posición:', position, 'Puntos:', points, 'por admin:', user?.name);
+    } catch (error) {
+      console.error('❌ Error eliminando jugador:', error);
+      // Aquí podrías mostrar una notificación de error
+    }
+  };
+
+  const handleCancelRegistration = async (playerId: string) => {
+    try {
+      await playerService.removePlayer(playerId);
+      // Recargar la lista de jugadores
+      await loadPlayers();
+      console.log('✅ Inscripción anulada para jugador:', playerId, 'por admin:', user?.name);
+    } catch (error) {
+      console.error('❌ Error anulando inscripción:', error);
+      // Aquí podrías mostrar una notificación de error
+    }
+  };
+
+  const handleUpdateChips = async (playerId: string, chips: number) => {
+    try {
+      await playerService.updatePlayerChips(playerId, chips);
+      // Recargar la lista de jugadores
+      await loadPlayers();
+      console.log('✅ Fichas actualizadas para jugador:', playerId, 'Fichas:', chips, 'por admin:', user?.name);
+    } catch (error) {
+      console.error('❌ Error actualizando fichas:', error);
+      // Aquí podrías mostrar una notificación de error
+    }
+  };
+
+  // Función para navegar al reporte de ingresos por administrador
+  const handleGoToIncomeReport = () => {
+    navigate(`/reports/admin-income/${tournamentId}`);
   };
 
   // Calcular progreso del tiempo (simplificado)
@@ -173,35 +460,154 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
     return Math.max(0, Math.min(100, (elapsed / totalTime) * 100));
   };
 
-  // Función para obtener el color de conexión
-  const getConnectionColor = () => {
-    switch (connectionStatus) {
-      case 'connected': return 'success';
-      case 'connecting': return 'warning';
-      case 'error': return 'error';
-      default: return 'info';
-    }
-  };
+  // Sistema de sonidos
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const lastPlayedSecondRef = useRef<number>(-1);
+  const lastLevelEndedRef = useRef<boolean>(false);
 
-  // Función para obtener el texto de conexión
-  const getConnectionText = () => {
-    switch (connectionStatus) {
-      case 'connected': return 'Conectado';
-      case 'connecting': return 'Conectando...';
-      case 'error': return 'Error de conexión';
-      default: return 'Desconectado';
+  // Inicializar y activar AudioContext
+  const initAudioContext = useCallback(async () => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
-  };
 
-  // Función para obtener el icono de conexión
-  const getConnectionIcon = () => {
-    switch (connectionStatus) {
-      case 'connected': return <RadioButtonChecked color="success" />;
-      case 'connecting': return <Timer color="warning" />;
-      case 'error': return <RadioButtonUnchecked color="error" />;
-      default: return <RadioButtonUnchecked />;
+    // Activar el AudioContext si está suspendido (requerido por navegadores modernos)
+    if (audioContextRef.current.state === 'suspended') {
+      try {
+        await audioContextRef.current.resume();
+        console.log('🎵 AudioContext activado');
+      } catch (error) {
+        console.warn('Error activando AudioContext:', error);
+      }
     }
-  };
+
+    return audioContextRef.current;
+  }, []);
+
+  // Función para reproducir bip normal (últimos 10 segundos)
+  const playTickSound = useCallback(async (frequency: number = 800, duration: number = 100) => {
+    try {
+      const audioContext = await initAudioContext();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+      oscillator.type = 'sine';
+
+      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
+
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + duration / 1000);
+    } catch (error) {
+      console.warn('Error reproduciendo sonido:', error);
+    }
+  }, [initAudioContext]);
+
+  // Función para reproducir secuencia de fin de nivel (4 bips cortos + 1 largo)
+  const playLevelEndSequence = useCallback(async () => {
+    try {
+      const audioContext = await initAudioContext();
+
+      // Función para crear un bip individual
+      const createBeep = (frequency: number, duration: number, delay: number) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime + delay);
+        oscillator.type = 'sine';
+
+        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime + delay);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + delay + duration);
+
+        oscillator.start(audioContext.currentTime + delay);
+        oscillator.stop(audioContext.currentTime + delay + duration);
+      };
+
+      // 4 bips cortos cada medio segundo (500ms)
+      for (let i = 0; i < 4; i++) {
+        createBeep(800, 0.1, i * 0.5); // Frecuencia 800Hz, duración 100ms
+      }
+
+      // 5to bip más largo y agudo después de 2 segundos
+      setTimeout(() => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        oscillator.frequency.setValueAtTime(1200, audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(800, audioContext.currentTime + 0.8);
+        oscillator.type = 'sine';
+
+        gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.8);
+
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.8);
+      }, 2000);
+
+    } catch (error) {
+      console.warn('Error reproduciendo secuencia de fin de nivel:', error);
+    }
+  }, [initAudioContext]);
+
+  // Función para activar sonidos (llamada por interacción del usuario)
+  const enableSounds = useCallback(async () => {
+    try {
+      await initAudioContext();
+      console.log('🎵 Sonidos activados por interacción del usuario');
+    } catch (error) {
+      console.warn('Error activando sonidos:', error);
+    }
+  }, [initAudioContext]);
+
+  // Efecto para manejar sonidos del reloj
+  useEffect(() => {
+    if (!clockState || clockState.is_paused) return;
+
+    const currentSecond = clockState.time_remaining_seconds;
+
+    // Detectar cuando el reloj llegue a cero (fin del nivel)
+    if (currentSecond === 2 && !lastLevelEndedRef.current) {
+      console.log('🎵 Nivel terminado - reproduciendo secuencia de fin de nivel');
+      playLevelEndSequence();
+      lastLevelEndedRef.current = true;
+
+      // Avanzar automáticamente al siguiente nivel sin esperar sincronización
+      console.log('🔄 Avanzando automáticamente al siguiente nivel...');
+      setTimeout(() => {
+        handleNextLevel();
+      }, 1000); // Pequeño delay para que se complete la secuencia de sonidos
+    }
+
+    // Reset del flag cuando el tiempo se reinicia (nuevo nivel)
+    if (currentSecond > 0) {
+      lastLevelEndedRef.current = false;
+    }
+
+    // Reproducir bip en los últimos 10 segundos (excepto el segundo 0)
+    if (currentSecond <= 10 && currentSecond !== lastPlayedSecondRef.current && currentSecond > 0) {
+      console.log(`🎵 Bip en ${currentSecond} segundos`);
+      playTickSound();
+      lastPlayedSecondRef.current = currentSecond;
+    }
+
+    // Reset cuando el tiempo se reinicia
+    if (currentSecond > 10) {
+      lastPlayedSecondRef.current = -1;
+    }
+
+  }, [clockState, playTickSound, playLevelEndSequence, handleNextLevel]);
+
+
 
   if (error) {
     return (
@@ -225,20 +631,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
     );
   }
 
-  if (!isConnected && connectionStatus === 'connecting') {
-    return (
-      <Card sx={{ maxWidth: 400, mx: 'auto', mt: 2 }}>
-        <CardContent>
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            <Box display="flex" alignItems="center" gap={1}>
-              <Timer />
-              Conectando al servidor...
-            </Box>
-          </Alert>
-        </CardContent>
-      </Card>
-    );
-  }
+
 
   if (!clockState) {
     return (
@@ -247,11 +640,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
           <Alert severity="info" sx={{ mb: 2 }}>
             No hay reloj activo para este torneo
           </Alert>
-          <Chip
-            label={getConnectionText()}
-            color={getConnectionColor()}
-            variant="outlined"
-          />
+
         </CardContent>
       </Card>
     );
@@ -263,8 +652,10 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
       sx={{
         mb: 3,
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        cursor: 'pointer'
       }}
+      onClick={enableSounds}
     >
       <CardContent>
         {/* Header con información de conexión y nivel */}
@@ -274,12 +665,6 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
               Reloj del Torneo
             </Typography>
             <Box display="flex" gap={1} mt={1}>
-              <Chip
-                label={getConnectionText()}
-                color={getConnectionColor()}
-                variant="outlined"
-                size="small"
-              />
               <Chip
                 label={`Nivel ${clockState.current_level}`}
                 color="primary"
@@ -375,6 +760,24 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
             >
               Siguiente Nivel
             </Button>
+
+            <Button
+              variant="contained"
+              startIcon={<Stop />}
+              onClick={() => setFinishTournamentDialogOpen(true)}
+              color="error"
+              disabled={!isConnected}
+              sx={{
+                border: '2px solid',
+                borderColor: 'error.main',
+                '&:hover': {
+                  backgroundColor: 'error.dark',
+                  borderColor: 'error.dark'
+                }
+              }}
+            >
+              Terminar Torneo
+            </Button>
           </Box>
         )}
 
@@ -390,69 +793,9 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
           </Box>
         )}
 
-        {/* Estado detallado de conexión */}
-        <Box mt={2} textAlign="center">
-          <Box display="flex" justifyContent="center" gap={1} flexWrap="wrap" mb={1}>
-            <Chip
-              label={getConnectionText()}
-              color={getConnectionColor()}
-              size="small"
-              variant="outlined"
-              icon={getConnectionIcon()}
-            />
-            {isConnected && (
-              <Chip
-                label="WebSocket OK"
-                color="success"
-                size="small"
-                variant="filled"
-              />
-            )}
-            {connectionStatus === 'error' && (
-              <Chip
-                label="Error de conexión"
-                color="error"
-                size="small"
-                variant="filled"
-              />
-            )}
-          </Box>
 
-          {connectionStatus !== 'connected' && (
-            <Box mt={1}>
-              <Button
-                variant="outlined"
-                color="primary"
-                onClick={reconnect}
-                size="small"
-                disabled={connectionStatus === 'connecting'}
-              >
-                {connectionStatus === 'connecting' ? '🔄 Conectando...' : '🔄 Reintentar conexión'}
-              </Button>
-            </Box>
-          )}
 
-          {error && (
-            <Typography variant="caption" color="error" sx={{ mt: 1, display: 'block' }}>
-              {error}
-            </Typography>
-          )}
-        </Box>
 
-        {/* Información del sistema automático */}
-        <Box mt={2} p={2} sx={{
-          backgroundColor: 'rgba(0, 0, 0, 0.04)',
-          borderRadius: 2,
-          border: '1px solid rgba(0, 0, 0, 0.12)'
-        }}>
-          <Typography variant="body2" color="text.secondary" textAlign="center">
-            🎯 <strong>Sistema Automático Activo:</strong> El reloj avanzará automáticamente
-            al siguiente nivel cuando se agote el tiempo ({clockInfo?.timeRemaining || clockState.time_remaining_seconds}s)
-          </Typography>
-          <Typography variant="caption" color="text.secondary" textAlign="center" sx={{ display: 'block', mt: 1 }}>
-            Nivel actual: {clockState.current_level} | Próximo nivel: {clockState.current_level + 1}
-          </Typography>
-        </Box>
 
         {/* Niveles Configurados */}
         {tournamentInfo?.blind_structure && tournamentInfo.blind_structure.length > 0 && (
@@ -549,6 +892,177 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
             </Typography>
           </Box>
         )}
+
+        {/* Lista de Jugadores - Solo para Administradores */}
+        {isAdmin && (
+          <Box mt={3}>
+            <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
+              <Typography variant="h6" sx={{ color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <People />
+                Jugadores del Torneo ({players.length})
+              </Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={loadPlayers}
+                disabled={loadingPlayers}
+              >
+                {loadingPlayers ? 'Cargando...' : 'Actualizar'}
+              </Button>
+            </Box>
+
+            {loadingPlayers ? (
+              <Box textAlign="center" py={3}>
+                <Typography variant="body2" color="text.secondary">
+                  Cargando jugadores...
+                </Typography>
+              </Box>
+            ) : players.length === 0 ? (
+              <Box textAlign="center" py={3}>
+                <Typography variant="body2" color="text.secondary">
+                  No hay jugadores registrados en este torneo
+                </Typography>
+              </Box>
+            ) : (
+              <Box sx={{ maxHeight: '60vh', overflow: 'auto' }}>
+                {players.map((player) => (
+                  <PlayerListItem
+                    key={player.id}
+                    player={player}
+                    tournamentConfig={{
+                      entry_fee: tournamentInfo?.entry_fee || 0,
+                      rebuy_chips: tournamentInfo?.rebuy_chips || 0,
+                      addon_chips: tournamentInfo?.addon_chips || 0,
+                    }}
+                    onConfirmRegistration={handleConfirmRegistration}
+                    onRebuy={handleRebuy}
+                    onAddon={handleAddon}
+                    onEliminate={handleEliminate}
+                    onCancelRegistration={handleCancelRegistration}
+                    onUpdateChips={handleUpdateChips}
+                    totalPlayers={players.length}
+                    eliminatedPlayers={players.filter(p => p.is_eliminated).length}
+                  />
+                ))}
+              </Box>
+            )}
+
+            {/* Estadísticas rápidas */}
+            {players.length > 0 && (
+              <Box mt={2} p={2} sx={{ backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 1 }}>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold' }}>
+                  Estadísticas del Torneo
+                </Typography>
+                <Box display="flex" flexWrap="wrap" gap={2}>
+                  <Chip
+                    label={`Total: ${players.length}`}
+                    color="primary"
+                    size="small"
+                    variant="outlined"
+                  />
+                  <Chip
+                    label={`Activos: ${players.filter(p => p.is_active).length}`}
+                    color="success"
+                    size="small"
+                    variant="outlined"
+                  />
+                  <Chip
+                    label={`Eliminados: ${players.filter(p => p.is_eliminated).length}`}
+                    color="error"
+                    size="small"
+                    variant="outlined"
+                  />
+                  <Chip
+                    label={`Inactivos: ${players.filter(p => !p.is_active && !p.is_eliminated).length}`}
+                    color="warning"
+                    size="small"
+                    variant="outlined"
+                  />
+                </Box>
+              </Box>
+            )}
+
+            {/* Botón de reporte de ingresos por administrador */}
+            <Box mt={2} p={2} sx={{ backgroundColor: 'rgba(33, 150, 243, 0.1)', borderRadius: 1 }}>
+              <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                📊 Reporte de Ingresos por Administrador
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Ver resumen detallado de dinero cobrado por cada administrador en este torneo
+              </Typography>
+              <Button
+                variant="contained"
+                color="primary"
+                startIcon={<Assessment />}
+                onClick={handleGoToIncomeReport}
+                fullWidth
+                size="large"
+                sx={{ fontSize: '1rem', py: 1.5 }}
+              >
+                Ver Reporte de Ingresos
+              </Button>
+            </Box>
+          </Box>
+        )}
+
+        {/* Diálogo de confirmación para terminar torneo */}
+        <Dialog
+          open={finishTournamentDialogOpen}
+          onClose={() => setFinishTournamentDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle sx={{ color: 'error.main', fontWeight: 'bold' }}>
+            ⚠️ Confirmar Finalización del Torneo
+          </DialogTitle>
+          <DialogContent>
+            <Typography variant="body1" sx={{ mb: 2 }}>
+              ¿Estás seguro de que quieres <strong>TERMINAR</strong> este torneo?
+            </Typography>
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              <Typography variant="body2" fontWeight="bold">
+                ⚠️ ATENCIÓN: Esta acción NO se puede revertir
+              </Typography>
+              <Typography variant="body2">
+                • El torneo se marcará como finalizado permanentemente
+              </Typography>
+              <Typography variant="body2">
+                • No se podrán realizar más operaciones en este torneo
+              </Typography>
+              <Typography variant="body2">
+                • Se generará el reporte final de resultados
+              </Typography>
+            </Alert>
+            <Typography variant="body2" color="text.secondary">
+              Si estás seguro, haz clic en "SÍ, TERMINAR TORNEO". De lo contrario, cancela esta operación.
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{ p: 2, gap: 1 }}>
+            <Button
+              onClick={() => setFinishTournamentDialogOpen(false)}
+              variant="outlined"
+              color="primary"
+              disabled={finishingTournament}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleFinishTournament}
+              variant="contained"
+              color="error"
+              disabled={finishingTournament}
+              startIcon={<Stop />}
+              sx={{
+                fontWeight: 'bold',
+                '&:hover': {
+                  backgroundColor: 'error.dark'
+                }
+              }}
+            >
+              {finishingTournament ? 'Finalizando...' : 'SÍ, TERMINAR TORNEO'}
+            </Button>
+          </DialogActions>
+        </Dialog>
       </CardContent>
     </Card>
   );

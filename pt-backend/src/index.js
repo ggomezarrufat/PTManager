@@ -23,16 +23,15 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3001;
 
-// Inicializar servidor WebSocket del reloj del torneo (después de dotenv)
-let tournamentClockServer = null;
-try {
-  const TournamentClockServer = require('./tournamentClockServer');
-  tournamentClockServer = new TournamentClockServer(server);
-  console.log('✅ Servidor WebSocket del reloj inicializado correctamente');
-} catch (error) {
-  console.error('❌ Error inicializando servidor WebSocket:', error.message);
-  console.log('⚠️ El reloj en tiempo real no estará disponible');
-}
+// Servicio de actualización automática del reloj del torneo
+const tournamentClockService = require('./services/tournamentClockService');
+
+// Inicializar servicio de actualización automática del reloj
+tournamentClockService.init();
+
+// WebSocket eliminado - usando HTTP polling para sincronización del reloj
+console.log('📡 Usando HTTP polling para sincronización del reloj (sin WebSocket)');
+console.log('⏰ Servicio de actualización automática del reloj inicializado');
 
 // Configuración para Vercel y entornos serverless
 // Trust proxy es necesario para que express-rate-limit funcione correctamente

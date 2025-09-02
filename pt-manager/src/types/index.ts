@@ -60,6 +60,10 @@ export interface TournamentPlayer {
   is_eliminated: boolean;
   eliminated_at?: string;
   user?: User; // Relación con el usuario
+  rebuys_count: number;
+  addons_count: number;
+  registration_confirmed_by?: string; // Admin user ID
+  eliminated_by?: string; // Admin user ID
 }
 
 export interface Rebuy {
@@ -69,6 +73,7 @@ export interface Rebuy {
   amount: number;
   chips_received: number;
   timestamp: string;
+  admin_user_id: string; // Admin user ID que registró la recompra
 }
 
 export interface Addon {
@@ -78,6 +83,7 @@ export interface Addon {
   amount: number;
   chips_received: number;
   timestamp: string;
+  admin_user_id: string; // Admin user ID que registró el addon
 }
 
 export interface TournamentClock {
@@ -170,4 +176,14 @@ export interface PlayerFilters {
   is_eliminated?: boolean;
   min_chips?: number;
   max_chips?: number;
+}
+
+// Tipos para reportes de ingresos por administrador
+export interface AdminIncomeReportData {
+  admin_id: string;
+  admin_name: string;
+  entry_fees: number; // Cuotas de inscripción cobradas por este admin
+  rebuys: number; // Suma de rebuys cobrados por este admin
+  addons: number; // Suma de addons cobrados por este admin
+  total: number; // Total cobrado por este admin
 } 

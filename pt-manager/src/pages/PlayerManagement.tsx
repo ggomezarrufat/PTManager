@@ -33,6 +33,7 @@ import {
   Edit as EditIcon
 } from '@mui/icons-material';
 import { useTournamentStore } from '../store/tournamentStore';
+import { useAuthStore } from '../store/authStore';
 import { userService } from '../services/apiService';
 import { getUserDisplayName, getUserFullName } from '../utils/userUtils';
 import { isValidUUID } from '../utils/validation';
@@ -41,15 +42,17 @@ import { User, TournamentPlayer } from '../types';
 const PlayerManagement: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { 
-    currentTournament, 
-    players, 
-    loading, 
+  const {
+    currentTournament,
+    players,
+    loading,
     error,
     loadTournament,
     addPlayer,
     eliminatePlayer
   } = useTournamentStore();
+
+  const { user } = useAuthStore();
 
   // Estados locales
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
@@ -59,6 +62,7 @@ const PlayerManagement: React.FC = () => {
   const [eliminationDialogOpen, setEliminationDialogOpen] = useState(false);
   const [selectedPlayerForElimination, setSelectedPlayerForElimination] = useState<TournamentPlayer | null>(null);
   const [eliminationPosition, setEliminationPosition] = useState(1);
+  const [eliminationPoints, setEliminationPoints] = useState(1);
 
   // Cargar torneo al montar el componente
   useEffect(() => {
@@ -86,10 +90,18 @@ const PlayerManagement: React.FC = () => {
     loadAvailableUsers();
   }, []);
 
-  // Calcular próxima posición de eliminación
+  // Calcular próxima posición y puntos de eliminación
   useEffect(() => {
     const eliminatedCount = players.filter(p => p.is_eliminated).length;
-    setEliminationPosition(eliminatedCount + 1);
+    const totalPlayers = players.length;
+
+    // Posición = Total de jugadores - Jugadores eliminados
+    const nextPosition = totalPlayers - eliminatedCount;
+    // Puntos = Jugadores eliminados + 1
+    const nextPoints = eliminatedCount + 1;
+
+    setEliminationPosition(nextPosition);
+    setEliminationPoints(nextPoints);
   }, [players]);
 
   const handleAddPlayer = async () => {
@@ -114,9 +126,28 @@ const PlayerManagement: React.FC = () => {
     if (!selectedPlayerForElimination) return;
 
     try {
-      await eliminatePlayer(selectedPlayerForElimination.id, eliminationPosition);
+      console.log('🔄 Intentando eliminar jugador desde PlayerManagement:', {
+        playerId: selectedPlayerForElimination.id,
+        eliminationPosition,
+        eliminationPoints,
+        userId: user?.id,
+        userName: user?.name,
+        isAuthenticated: !!user
+      });
+
+      if (!user?.id) {
+        throw new Error('Usuario no autenticado - no se puede eliminar el jugador');
+      }
+
+      // Usar el servicio actualizado con parámetros opcionales
+      await eliminatePlayer(selectedPlayerForElimination.id, eliminationPosition, user.id, eliminationPoints);
       setEliminationDialogOpen(false);
       setSelectedPlayerForElimination(null);
+
+      // Recargar torneo para actualizar datos
+      if (currentTournament) {
+        loadTournament(currentTournament.id);
+      }
     } catch (error) {
       console.error('Error eliminando jugador:', error);
     }
@@ -373,14 +404,40 @@ const PlayerManagement: React.FC = () => {
               ))}
             </TextField>
 
+            <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1, mb: 2 }}>
+              <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>
+                Valores Calculados Automáticamente:
+              </Typography>
+              <Typography variant="body2">
+                • Posición sugerida: #{eliminationPosition}
+              </Typography>
+              <Typography variant="body2">
+                • Puntos sugeridos: {eliminationPoints}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Puedes modificar estos valores si es necesario
+              </Typography>
+            </Box>
+
             <TextField
               label="Posición Final"
               type="number"
               value={eliminationPosition}
-              onChange={(e) => setEliminationPosition(parseInt(e.target.value))}
+              onChange={(e) => setEliminationPosition(parseInt(e.target.value) || 1)}
               fullWidth
               inputProps={{ min: 1 }}
-              helperText={`Próxima posición disponible: ${eliminationPosition}`}
+              helperText="Modifica si necesitas cambiar la posición calculada"
+              sx={{ mb: 2 }}
+            />
+
+            <TextField
+              label="Puntos Obtenidos"
+              type="number"
+              value={eliminationPoints}
+              onChange={(e) => setEliminationPoints(parseInt(e.target.value) || 0)}
+              fullWidth
+              inputProps={{ min: 0 }}
+              helperText="Modifica si necesitas cambiar los puntos calculados"
             />
           </Box>
         </DialogContent>
@@ -388,11 +445,11 @@ const PlayerManagement: React.FC = () => {
           <Button onClick={() => setEliminationDialogOpen(false)}>
             Cancelar
           </Button>
-          <Button 
+          <Button
             onClick={handleEliminatePlayer}
             variant="contained"
             color="error"
-            disabled={!selectedPlayerForElimination}
+            disabled={!selectedPlayerForElimination || eliminationPosition < 1}
           >
             Eliminar
           </Button>

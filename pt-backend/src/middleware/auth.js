@@ -9,7 +9,15 @@ const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
+    console.log('🔐 Auth middleware - Request:', {
+      method: req.method,
+      url: req.url,
+      hasAuthHeader: !!authHeader,
+      hasToken: !!token
+    });
+
     if (!token) {
+      console.log('❌ Auth middleware - No token provided');
       return res.status(401).json({
         error: 'Access Denied',
         message: 'Token de acceso requerido'
@@ -20,7 +28,14 @@ const authenticateToken = async (req, res, next) => {
     const supabase = getSupabaseClient();
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
+    console.log('🔐 Auth middleware - Token verification:', {
+      hasUser: !!user,
+      userId: user?.id,
+      error: error?.message
+    });
+
     if (error || !user) {
+      console.log('❌ Auth middleware - Token verification failed');
       return res.status(401).json({
         error: 'Invalid Token',
         message: 'Token inválido o expirado'
@@ -44,7 +59,13 @@ const authenticateToken = async (req, res, next) => {
     // Agregar usuario y perfil al request
     req.user = user;
     req.profile = profile;
-    
+
+    console.log('✅ Auth middleware - User authenticated:', {
+      userId: user.id,
+      email: user.email,
+      isAdmin: profile.is_admin
+    });
+
     next();
   } catch (error) {
     console.error('Error in auth middleware:', error);

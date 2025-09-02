@@ -509,13 +509,33 @@ const playerService = {
     });
   },
 
-  async eliminatePlayer(playerId: string, position: number) {
+  async eliminatePlayer(playerId: string, position?: number, eliminatedBy?: string, pointsEarned?: number) {
+    const body: any = {};
+
+    if (position !== undefined) body.final_position = position;
+    if (eliminatedBy) body.eliminated_by = eliminatedBy;
+    if (pointsEarned !== undefined) body.points_earned = pointsEarned;
+
+    console.log('🔍 API Service - eliminatePlayer - Body preparado:', body);
+    console.log('🔍 API Service - eliminatePlayer - Parámetros recibidos:', {
+      playerId,
+      position,
+      eliminatedBy,
+      pointsEarned
+    });
+
     return await apiRequest<{
       message: string;
       player: any;
+      calculated_values?: {
+        calculated_position: number;
+        calculated_points: number;
+        total_players: number;
+        eliminated_count: number;
+      };
     }>(`/api/players/${playerId}/eliminate`, {
       method: 'PUT',
-      body: JSON.stringify({ final_position: position }),
+      body: JSON.stringify(body),
     });
   },
 
@@ -539,6 +559,7 @@ const playerService = {
   async updatePlayerResults(playerId: string, data: {
     final_position?: number;
     points_earned?: number;
+    eliminated_by?: string;
   }) {
     return await apiRequest<{
       message: string;
@@ -555,6 +576,7 @@ const rebuyService = {
   async registerRebuy(playerId: string, rebuyData: {
     amount: number;
     chips_received: number;
+    admin_user_id: string;
   }) {
     return await apiRequest<{
       message: string;
@@ -571,6 +593,17 @@ const rebuyService = {
       rebuys: any[];
     }>(`/api/players/${playerId}/rebuys`);
   },
+
+  async getTournamentRebuys(tournamentId: string) {
+    return await apiRequest<{
+      message: string;
+      tournament: {
+        id: string;
+        name: string;
+      };
+      rebuys: any[];
+    }>(`/api/tournaments/${tournamentId}/rebuys`);
+  },
 };
 
 // Addon Service
@@ -578,6 +611,7 @@ const addonService = {
   async registerAddon(playerId: string, addonData: {
     amount: number;
     chips_received: number;
+    admin_user_id: string;
   }) {
     return await apiRequest<{
       message: string;
@@ -676,6 +710,27 @@ const reportsService = {
       }[];
     }>(`/api/reports/player-tournaments/${userId}`);
   },
+
+  async getAdminIncomeReport(tournamentId: string) {
+    return await apiRequest<{
+      tournament_id: string;
+      tournament_name: string;
+      summary: {
+        total_entry_fees: number;
+        total_rebuys: number;
+        total_addons: number;
+        grand_total: number;
+      };
+      admin_breakdown: Array<{
+        admin_id: string;
+        admin_name: string;
+        entry_fees: number;
+        rebuys: number;
+        addons: number;
+        total: number;
+      }>;
+    }>(`/api/reports/admin-income/${tournamentId}`);
+  },
 };
 
 const seasonService = {
@@ -725,10 +780,10 @@ const seasonService = {
 };
 
 // Exportaciones individuales
-export { 
-  authService, 
-  userService, 
-  tournamentService, 
+export {
+  authService,
+  userService,
+  tournamentService,
   playerService,
   rebuyService,
   addonService,

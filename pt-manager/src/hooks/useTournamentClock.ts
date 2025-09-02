@@ -27,13 +27,15 @@ interface UseTournamentClockProps {
   userId: string;
   onLevelChanged?: (data: LevelChangedData) => void;
   onTournamentEnded?: (data: any) => void;
+  onClockAction?: (action: string, message: string) => void;
 }
 
 export const useTournamentClock = ({
   tournamentId,
   userId,
   onLevelChanged,
-  onTournamentEnded
+  onTournamentEnded,
+  onClockAction
 }: UseTournamentClockProps) => {
   const [clockState, setClockState] = useState<ClockState | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -192,8 +194,8 @@ export const useTournamentClock = ({
         setConnectionStatus('connected');
         setError(null);
 
-        // Iniciar polling cada 2 segundos
-        pollingIntervalRef.current = setInterval(pollClockState, 2000);
+        // Iniciar polling cada 60 segundos para reducir carga del servidor
+        pollingIntervalRef.current = setInterval(pollClockState, 60000);
 
       } else {
         console.error('Error uniéndose al torneo:', data.error);
@@ -284,7 +286,10 @@ export const useTournamentClock = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ tournamentId })
+        body: JSON.stringify({
+          tournamentId,
+          currentTimeSeconds: clockState?.time_remaining_seconds
+        })
       });
 
       const data = await response.json();
@@ -301,9 +306,17 @@ export const useTournamentClock = ({
           return newState;
         });
 
+        // Notificar éxito al usuario
+        if (onClockAction) {
+          onClockAction('paused', 'Reloj pausado exitosamente');
+        }
+
     } else {
         console.error('❌ Error al pausar reloj:', data.error);
         setError(data.error);
+        if (onClockAction) {
+          onClockAction('error', data.error);
+        }
       }
 
     } catch (error) {
@@ -326,7 +339,10 @@ export const useTournamentClock = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ tournamentId })
+        body: JSON.stringify({
+          tournamentId,
+          currentTimeSeconds: clockState?.time_remaining_seconds
+        })
       });
 
       const data = await response.json();
@@ -348,9 +364,17 @@ export const useTournamentClock = ({
           return newState;
         });
 
+        // Notificar éxito al usuario
+        if (onClockAction) {
+          onClockAction('resumed', 'Reloj reanudado exitosamente');
+        }
+
     } else {
         console.error('❌ Error al reanudar reloj:', data.error);
         setError(data.error);
+        if (onClockAction) {
+          onClockAction('error', data.error);
+        }
       }
 
     } catch (error) {
@@ -423,6 +447,7 @@ export const useTournamentClock = ({
   return {
     // Estados principales
     clockState,
+    setClockState, // Agregado para permitir actualizaciones locales
     isConnected,
     connectionStatus,
     error,

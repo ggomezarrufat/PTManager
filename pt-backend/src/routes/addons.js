@@ -29,7 +29,7 @@ const router = express.Router();
  * @swagger
  * /api/players/{playerId}/addons:
  *   post:
- *     summary: Registrar addon para un jugador
+ *     summary: Registrar nuevo addon para un jugador
  *     tags: [Addons]
  *     security:
  *       - bearerAuth: []
@@ -39,6 +39,8 @@ const router = express.Router();
  *         required: true
  *         schema:
  *           type: string
+ *           format: uuid
+ *         description: ID del jugador
  *     requestBody:
  *       required: true
  *       content:
@@ -48,21 +50,86 @@ const router = express.Router();
  *             required:
  *               - amount
  *               - chips_received
+ *               - admin_user_id
  *             properties:
  *               amount:
  *                 type: number
+ *                 minimum: 0
+ *                 description: Cantidad pagada por el addon
  *               chips_received:
- *                 type: number
+ *                 type: integer
+ *                 minimum: 1
+ *                 description: Fichas recibidas por el addon
+ *               admin_user_id:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del administrador que registra el addon
  *     responses:
  *       201:
  *         description: Addon registrado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 addon:
+ *                   $ref: '#/components/schemas/Addon'
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       403:
+ *         description: Sin permisos de administrador
+ *       404:
+ *         description: Jugador no encontrado
+ *       409:
+ *         description: Máximo de addons alcanzado
+ */
+
+/**
+ * @swagger
+ * /api/players/{playerId}/addons:
+ *   get:
+ *     summary: Obtener historial de addons de un jugador
+ *     tags: [Addons]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: playerId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del jugador
+ *     responses:
+ *       200:
+ *         description: Lista de addons del jugador
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 addons:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Addon'
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Jugador no encontrado
  */
 router.post('/players/:playerId/addons',
   authenticateToken,
   [
     param('playerId').isUUID().withMessage('Player ID debe ser un UUID válido'),
     body('amount').isNumeric().withMessage('Amount debe ser un número válido'),
-    body('chips_received').isInt({ min: 1 }).withMessage('Chips received debe ser un número entero positivo')
+    body('chips_received').isInt({ min: 1 }).withMessage('Chips received debe ser un número entero positivo'),
+    body('admin_user_id').isUUID().withMessage('Admin user ID debe ser un UUID válido')
   ],
   async (req, res, next) => {
     try {
@@ -76,12 +143,37 @@ router.post('/players/:playerId/addons',
       }
 
       const { playerId } = req.params;
-      const { amount, chips_received } = req.body;
+      const { amount, chips_received, admin_user_id } = req.body;
 
-      // Obtener información del jugador
+      // Verificar que el usuario sea administrador
+      if (!req.profile?.is_admin) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: 'Solo los administradores pueden registrar addons'
+        });
+      }
+
+      // Verificar que el admin_user_id coincida con el usuario autenticado
+      if (admin_user_id !== req.user?.id) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: 'El ID de administrador no coincide con el usuario autenticado'
+        });
+      }
+
+      // Obtener información del jugador con su torneo
       const { data: player, error: playerError } = await supabase
         .from('tournament_players')
-        .select('*, tournaments(*)')
+        .select(`
+          *,
+          tournaments (
+            id,
+            name,
+            max_addons,
+            entry_fee,
+            addon_chips
+          )
+        `)
         .eq('id', playerId)
         .single();
 
@@ -89,6 +181,14 @@ router.post('/players/:playerId/addons',
         return res.status(404).json({
           error: 'Player Not Found',
           message: 'Jugador no encontrado'
+        });
+      }
+
+      // Verificar que el torneo existe
+      if (!player.tournaments) {
+        return res.status(404).json({
+          error: 'Tournament Not Found',
+          message: 'Torneo del jugador no encontrado'
         });
       }
 
@@ -100,11 +200,12 @@ router.post('/players/:playerId/addons',
         });
       }
 
-      // Contar addons existentes
+      // Contar addons existentes en este torneo
       const { count: addonCount } = await supabase
         .from('addons')
         .select('id', { count: 'exact' })
-        .eq('player_id', playerId);
+        .eq('player_id', playerId)
+        .eq('tournament_id', player.tournament_id);
 
       if (addonCount >= player.tournaments.max_addons) {
         return res.status(400).json({
@@ -121,6 +222,7 @@ router.post('/players/:playerId/addons',
           tournament_id: player.tournament_id,
           amount,
           chips_received,
+          admin_user_id,
           timestamp: new Date().toISOString()
         })
         .select()

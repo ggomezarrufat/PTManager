@@ -71,6 +71,7 @@ const TournamentManagement: React.FC = () => {
   const [selectedPlayerForAddon, setSelectedPlayerForAddon] = useState('');
   const [selectedPlayerForElimination, setSelectedPlayerForElimination] = useState('');
   const [eliminationPosition, setEliminationPosition] = useState(1);
+  const [eliminationPoints, setEliminationPoints] = useState(1);
 
   // Cargar torneo al montar
   useEffect(() => {
@@ -81,10 +82,18 @@ const TournamentManagement: React.FC = () => {
     }
   }, [id, loadTournament, navigate]);
 
-  // Calcular próxima posición de eliminación
+  // Calcular próxima posición y puntos de eliminación
   useEffect(() => {
     const eliminatedCount = players.filter(p => p.is_eliminated).length;
-    setEliminationPosition(eliminatedCount + 1);
+    const totalPlayers = players.length;
+
+    // Posición = Total de jugadores - Jugadores eliminados
+    const nextPosition = totalPlayers - eliminatedCount;
+    // Puntos = Jugadores eliminados + 1
+    const nextPoints = eliminatedCount + 1;
+
+    setEliminationPosition(nextPosition);
+    setEliminationPoints(nextPoints);
   }, [players]);
 
   const handleStartTournament = async () => {
@@ -118,12 +127,24 @@ const TournamentManagement: React.FC = () => {
     if (!selectedPlayerForRebuy || !currentTournament) return;
 
     try {
+      console.log('🔄 Intentando registrar rebuy desde TournamentManagement:', {
+        selectedPlayerForRebuy,
+        userId: user?.id,
+        userName: user?.name,
+        isAuthenticated: !!user
+      });
+
+      if (!user?.id) {
+        throw new Error('Usuario no autenticado - no se puede registrar el rebuy');
+      }
+
       const player = players.find(p => p.id === selectedPlayerForRebuy);
       if (!player) return;
 
       await rebuyService.registerRebuy(selectedPlayerForRebuy, {
         amount: currentTournament.entry_fee,
-        chips_received: currentTournament.rebuy_chips
+        chips_received: currentTournament.rebuy_chips,
+        admin_user_id: user.id
       });
 
       // Actualizar fichas del jugador
@@ -146,12 +167,24 @@ const TournamentManagement: React.FC = () => {
     if (!selectedPlayerForAddon || !currentTournament) return;
 
     try {
+      console.log('🔄 Intentando registrar addon desde TournamentManagement:', {
+        selectedPlayerForAddon,
+        userId: user?.id,
+        userName: user?.name,
+        isAuthenticated: !!user
+      });
+
+      if (!user?.id) {
+        throw new Error('Usuario no autenticado - no se puede registrar el addon');
+      }
+
       const player = players.find(p => p.id === selectedPlayerForAddon);
       if (!player) return;
 
       await addonService.registerAddon(selectedPlayerForAddon, {
         amount: currentTournament.entry_fee,
-        chips_received: currentTournament.addon_chips
+        chips_received: currentTournament.addon_chips,
+        admin_user_id: user.id
       });
 
       // Actualizar fichas del jugador
@@ -174,11 +207,39 @@ const TournamentManagement: React.FC = () => {
     if (!selectedPlayerForElimination) return;
 
     try {
-      await playerService.eliminatePlayer(selectedPlayerForElimination, eliminationPosition);
-      
+      console.log('🔄 Intentando eliminar jugador desde TournamentManagement:', {
+        selectedPlayerForElimination,
+        eliminationPosition,
+        eliminationPoints,
+        userId: user?.id,
+        userName: user?.name,
+        isAuthenticated: !!user
+      });
+
+      if (!user?.id) {
+        throw new Error('Usuario no autenticado - no se puede eliminar el jugador');
+      }
+
+      // Llamar al servicio con los valores calculados (pueden ser modificados por el admin)
+      const result = await playerService.eliminatePlayer(
+        selectedPlayerForElimination,
+        eliminationPosition,
+        user.id,
+        eliminationPoints
+      );
+
+      // También actualizar el estado local del store
+      useTournamentStore.getState().eliminatePlayer(selectedPlayerForElimination, eliminationPosition, user.id, eliminationPoints);
+
+      console.log('✅ Jugador eliminado exitosamente:', {
+        calculated_values: result.calculated_values,
+        final_position: eliminationPosition,
+        final_points: eliminationPoints
+      });
+
       setEliminationDialogOpen(false);
       setSelectedPlayerForElimination('');
-      
+
       // Recargar torneo para actualizar datos
       if (currentTournament) {
         loadTournament(currentTournament.id);
@@ -339,10 +400,10 @@ const TournamentManagement: React.FC = () => {
             </Button>
           </Stack>
 
-          <Box sx={{ 
-            display: 'flex', 
+          <Box sx={{
+            display: 'flex',
             flexDirection: { xs: 'column', sm: 'row' },
-            justifyContent: 'space-between', 
+            justifyContent: 'space-between',
             alignItems: { xs: 'flex-start', sm: 'center' },
             gap: 1
           }}>
@@ -350,7 +411,7 @@ const TournamentManagement: React.FC = () => {
               Jugadores activos: {activePlayersForActions.length} | Eliminados: {players.filter(p => p.is_eliminated).length}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Próxima posición: #{eliminationPosition}
+              Próxima posición: #{eliminationPosition} | Puntos: {eliminationPoints}
             </Typography>
           </Box>
         </CardContent>
@@ -600,9 +661,19 @@ const TournamentManagement: React.FC = () => {
                         {/* Eliminar (eliminación del torneo) */}
                         <IconButton
                           size="small"
-                          onClick={() => { setSelectedPlayerForElimination(p.id); setEliminationDialogOpen(true); }}
-                          disabled={p.is_eliminated || currentTournament.status !== 'active'}
-                          sx={{ 
+                          onClick={() => {
+                            setSelectedPlayerForElimination(p.id);
+                            // Resetear valores a los calculados cuando se abre el diálogo
+                            const eliminatedCount = players.filter(player => player.is_eliminated).length;
+                            const totalPlayers = players.length;
+                            const nextPosition = totalPlayers - eliminatedCount;
+                            const nextPoints = eliminatedCount + 1;
+                            setEliminationPosition(nextPosition);
+                            setEliminationPoints(nextPoints);
+                            setEliminationDialogOpen(true);
+                          }}
+                          disabled={p.is_eliminated || !p.is_active}
+                          sx={{
                             backgroundColor: 'error.light',
                             color: 'error.contrastText',
                             '&:hover': {
@@ -854,16 +925,43 @@ const TournamentManagement: React.FC = () => {
               ))}
             </TextField>
 
+            <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+              <Typography variant="body2" sx={{ mb: 2, fontWeight: 600 }}>
+                Valores Calculados Automáticamente:
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                • Posición sugerida: #{eliminationPosition}
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                • Puntos sugeridos: {eliminationPoints}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Puedes modificar estos valores si es necesario
+              </Typography>
+            </Box>
+
             <TextField
               label="Posición Final"
               type="number"
               value={eliminationPosition}
-              onChange={(e) => setEliminationPosition(parseInt(e.target.value))}
+              onChange={(e) => setEliminationPosition(parseInt(e.target.value) || 1)}
               fullWidth
               variant="outlined"
               size={isMobile ? "medium" : "small"}
               inputProps={{ min: 1 }}
-              helperText={`Próxima posición disponible: ${eliminationPosition}`}
+              helperText="Modifica si necesitas cambiar la posición calculada"
+            />
+
+            <TextField
+              label="Puntos Obtenidos"
+              type="number"
+              value={eliminationPoints}
+              onChange={(e) => setEliminationPoints(parseInt(e.target.value) || 0)}
+              fullWidth
+              variant="outlined"
+              size={isMobile ? "medium" : "small"}
+              inputProps={{ min: 0 }}
+              helperText="Modifica si necesitas cambiar los puntos calculados"
             />
           </Stack>
         </DialogContent>
@@ -881,11 +979,11 @@ const TournamentManagement: React.FC = () => {
           >
             Cancelar
           </Button>
-          <Button 
+          <Button
             onClick={handleElimination}
             variant="contained"
             color="error"
-            disabled={!selectedPlayerForElimination}
+            disabled={!selectedPlayerForElimination || eliminationPosition < 1}
             fullWidth={isMobile}
             size={isMobile ? "large" : "medium"}
             sx={{

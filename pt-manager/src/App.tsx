@@ -16,6 +16,7 @@ import UserProfile from './pages/UserProfile';
 import CreateTournament from './pages/CreateTournament';
 import TournamentList from './pages/TournamentList';
 import UserAdmin from './pages/UserAdmin';
+import AdminIncomeReport from './pages/AdminIncomeReport';
 import Layout from './components/layout/Layout';
 import { API_BASE_URL } from './services/apiService';
 import SeasonAdmin from './pages/SeasonAdmin';
@@ -432,6 +433,7 @@ npm run dev`}
             <Route path="/tournament/:id/manage" element={<TournamentManagement />} />
             <Route path="/tournament/:id/players" element={<PlayerManagement />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/reports/admin-income/:tournamentId" element={<AdminIncomeReport />} />
             <Route path="/profile" element={<UserProfile />} />
             <Route path="/admin/users" element={<UserAdmin />} />
             <Route path="/seasons" element={<SeasonAdmin />} />

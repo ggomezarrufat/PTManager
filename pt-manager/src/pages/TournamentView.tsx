@@ -21,10 +21,11 @@ import {
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
-  Edit as EditIcon,
   Person as PersonIcon,
   Timer as TimerIcon,
-  EmojiEvents as TrophyIcon
+  EmojiEvents as TrophyIcon,
+  PlayArrow as PlayArrowIcon,
+  Settings as SettingsIcon
 } from '@mui/icons-material';
 import { useTournamentStore } from '../store/tournamentStore';
 import { useAuthStore } from '../store/authStore';
@@ -51,7 +52,8 @@ const TournamentView: React.FC = () => {
     error,
     loadTournament,
     setPlayers,
-    loadPlayers
+    loadPlayers,
+    startTournament
   } = useTournamentStore();
 
   // Cargar torneo al montar
@@ -110,6 +112,17 @@ const TournamentView: React.FC = () => {
 
   const canEdit = !!user?.is_admin;
 
+  const handleStartTournament = async () => {
+    if (!currentTournament) return;
+    try {
+      await startTournament(currentTournament.id);
+      // Recargar el torneo para actualizar el estado
+      await loadTournament(currentTournament.id);
+    } catch (error) {
+      console.error('Error iniciando torneo:', error);
+    }
+  };
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
@@ -154,13 +167,26 @@ const TournamentView: React.FC = () => {
           />
           
           {canEdit && (
-            <Button
-              variant="outlined"
-              startIcon={<EditIcon />}
-              onClick={() => navigate(`/tournaments/${id}/manage`)}
-            >
-              Gestionar
-            </Button>
+            <>
+              {currentTournament.status === 'scheduled' && (
+                <Button
+                  variant="contained"
+                  color="success"
+                  startIcon={<PlayArrowIcon />}
+                  onClick={handleStartTournament}
+                >
+                  Iniciar Torneo
+                </Button>
+              )}
+              
+              <Button
+                variant="outlined"
+                startIcon={<SettingsIcon />}
+                onClick={() => navigate(`/tournaments/${id}/manage`)}
+              >
+                Gestionar
+              </Button>
+            </>
           )}
         </Box>
       </Box>

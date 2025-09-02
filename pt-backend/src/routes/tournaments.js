@@ -378,7 +378,7 @@ router.put('/:id/start', [
           tournament_id: id,
           current_level: 1,
           time_remaining_seconds: initialTimeSeconds,
-          is_paused: false,
+          is_paused: true,
           total_pause_time_seconds: 0,
           last_updated: new Date().toISOString()
         });

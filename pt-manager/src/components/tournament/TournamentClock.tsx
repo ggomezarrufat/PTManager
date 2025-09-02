@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import { PlayArrow, Pause, SkipNext, SkipPrevious, People, Assessment, Stop } from '@mui/icons-material';
+import { Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from '@mui/material';
+import { PlayArrow, Pause, SkipNext, SkipPrevious, People, Assessment, Stop, PersonAdd } from '@mui/icons-material';
 import { useTournamentClock } from '../../hooks/useTournamentClock';
 import { useAuthStore } from '../../store/authStore';
 import { tournamentService, playerService, rebuyService, addonService, API_BASE_URL } from '../../services/apiService';
@@ -59,6 +59,13 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   // Estado para el diálogo de confirmación de finalización
   const [finishTournamentDialogOpen, setFinishTournamentDialogOpen] = useState(false);
   const [finishingTournament, setFinishingTournament] = useState(false);
+
+  // Estado para el diálogo de agregar jugador
+  const [addPlayerDialogOpen, setAddPlayerDialogOpen] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [addingPlayer, setAddingPlayer] = useState(false);
 
   // Cargar información del torneo
   useEffect(() => {
@@ -449,6 +456,76 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   // Función para navegar al reporte de ingresos por administrador
   const handleGoToIncomeReport = () => {
     navigate(`/reports/admin-income/${tournamentId}`);
+  };
+
+  // Cargar usuarios disponibles para agregar al torneo
+  const loadAvailableUsers = async () => {
+    setLoadingUsers(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Error cargando usuarios');
+      }
+
+      const data = await response.json();
+      
+      // Filtrar usuarios que no están ya en el torneo
+      const playerUserIds = players.map(p => p.user_id);
+      const availableUsers = data.users.filter((user: any) => !playerUserIds.includes(user.id));
+      
+      setAvailableUsers(availableUsers);
+    } catch (error) {
+      console.error('Error cargando usuarios:', error);
+      setAvailableUsers([]);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Manejar agregar jugador al torneo
+  const handleAddPlayer = async () => {
+    if (!selectedUserId || !tournamentInfo) return;
+
+    setAddingPlayer(true);
+    try {
+      console.log('🔄 Agregando jugador al torneo:', {
+        selectedUserId,
+        tournamentId,
+        entryFee: tournamentInfo.entry_fee,
+        initialChips: tournamentInfo.initial_chips,
+        userId: user?.id,
+        userName: user?.name
+      });
+
+      if (!user?.id) {
+        throw new Error('Usuario no autenticado');
+      }
+
+      await playerService.addPlayerToTournament(tournamentId, {
+        user_id: selectedUserId,
+        entry_fee_paid: tournamentInfo.entry_fee,
+        initial_chips: tournamentInfo.initial_chips
+      });
+
+      // Recargar la lista de jugadores
+      await loadPlayers();
+      
+      // Cerrar diálogo y limpiar estado
+      setAddPlayerDialogOpen(false);
+      setSelectedUserId('');
+      
+      console.log('✅ Jugador agregado exitosamente al torneo');
+    } catch (error) {
+      console.error('❌ Error agregando jugador:', error);
+      alert(`Error agregando jugador: ${error instanceof Error ? error.message : 'Error desconocido'}`);
+    } finally {
+      setAddingPlayer(false);
+    }
   };
 
   // Calcular progreso del tiempo (simplificado)
@@ -901,14 +978,28 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
                 <People />
                 Jugadores del Torneo ({players.length})
               </Typography>
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={loadPlayers}
-                disabled={loadingPlayers}
-              >
-                {loadingPlayers ? 'Cargando...' : 'Actualizar'}
-              </Button>
+              <Box display="flex" gap={1}>
+                <Button
+                  variant="contained"
+                  size="small"
+                  startIcon={<PersonAdd />}
+                  onClick={() => {
+                    loadAvailableUsers();
+                    setAddPlayerDialogOpen(true);
+                  }}
+                  color="success"
+                >
+                  Agregar Jugador
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={loadPlayers}
+                  disabled={loadingPlayers}
+                >
+                  {loadingPlayers ? 'Cargando...' : 'Actualizar'}
+                </Button>
+              </Box>
             </Box>
 
             {loadingPlayers ? (
@@ -1004,6 +1095,76 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
             </Box>
           </Box>
         )}
+
+        {/* Diálogo para agregar jugador al torneo */}
+        <Dialog
+          open={addPlayerDialogOpen}
+          onClose={() => setAddPlayerDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle sx={{ color: 'success.main', fontWeight: 'bold' }}>
+            👥 Agregar Jugador al Torneo
+          </DialogTitle>
+          <DialogContent>
+            <Box display="flex" flexDirection="column" gap={3} pt={1}>
+              <TextField
+                select
+                label="Seleccionar Usuario"
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                fullWidth
+                disabled={loadingUsers}
+                helperText={loadingUsers ? 'Cargando usuarios...' : 'Selecciona un usuario para agregar al torneo'}
+              >
+                {availableUsers.map((user) => (
+                  <MenuItem key={user.id} value={user.id}>
+                    {user.name} {user.nickname && `(@${user.nickname})`} - {user.email}
+                  </MenuItem>
+                ))}
+              </TextField>
+
+              {tournamentInfo && (
+                <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600 }}>
+                    Configuración del Torneo:
+                  </Typography>
+                  <Typography variant="body2">
+                    • Cuota de entrada: €{tournamentInfo.entry_fee}
+                  </Typography>
+                  <Typography variant="body2">
+                    • Fichas iniciales: {tournamentInfo.initial_chips?.toLocaleString()}
+                  </Typography>
+                </Box>
+              )}
+
+              {availableUsers.length === 0 && !loadingUsers && (
+                <Alert severity="info">
+                  No hay usuarios disponibles para agregar al torneo. Todos los usuarios ya están registrados.
+                </Alert>
+              )}
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 2, gap: 1 }}>
+            <Button
+              onClick={() => setAddPlayerDialogOpen(false)}
+              variant="outlined"
+              color="primary"
+              disabled={addingPlayer}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleAddPlayer}
+              variant="contained"
+              color="success"
+              disabled={!selectedUserId || addingPlayer}
+              startIcon={<PersonAdd />}
+            >
+              {addingPlayer ? 'Agregando...' : 'Agregar Jugador'}
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         {/* Diálogo de confirmación para terminar torneo */}
         <Dialog

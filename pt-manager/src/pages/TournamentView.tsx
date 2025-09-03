@@ -17,7 +17,13 @@ import {
   IconButton,
   Alert,
   CircularProgress,
-  Divider
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -25,16 +31,16 @@ import {
   Timer as TimerIcon,
   EmojiEvents as TrophyIcon,
   PlayArrow as PlayArrowIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  PersonAdd as PersonAddIcon
 } from '@mui/icons-material';
 import { useTournamentStore } from '../store/tournamentStore';
 import { useAuthStore } from '../store/authStore';
 import { getUserDisplayName } from '../utils/userUtils';
 import { isValidUUID } from '../utils/validation';
 import TournamentClock from '../components/tournament/TournamentClock';
-import { BlindLevel } from '../types';
-import { playerService, tournamentService } from '../services/apiService';
-import { TextField } from '@mui/material';
+import { BlindLevel, User } from '../types';
+import { playerService, tournamentService, userService } from '../services/apiService';
 
 const TournamentView: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -44,6 +50,12 @@ const TournamentView: React.FC = () => {
   const query = new URLSearchParams(location.search);
   const editResults = query.get('edit') === 'results';
   const [saving, setSaving] = useState(false);
+  
+  // Estados para el diálogo de inscripción de jugadores
+  const [addPlayerDialogOpen, setAddPlayerDialogOpen] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<User[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState('');
   const {
     currentTournament,
     players,
@@ -112,6 +124,24 @@ const TournamentView: React.FC = () => {
 
   const canEdit = !!user?.is_admin;
 
+  // Cargar usuarios disponibles
+  const loadAvailableUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      const response = await userService.getUsers(1, 100);
+      setAvailableUsers(response.users);
+    } catch (err) {
+      console.error('Error cargando usuarios:', err);
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // Filtrar usuarios que ya están en el torneo
+  const availableUsersForTournament = availableUsers.filter(
+    user => !players.some(player => player.user_id === user.id)
+  );
+
   const handleStartTournament = async () => {
     if (!currentTournament) return;
     try {
@@ -121,6 +151,33 @@ const TournamentView: React.FC = () => {
     } catch (error) {
       console.error('Error iniciando torneo:', error);
     }
+  };
+
+  const handleAddPlayer = async () => {
+    if (!selectedUserId || !currentTournament) {
+      return;
+    }
+
+    try {
+      await playerService.addPlayerToTournament(currentTournament.id, {
+        user_id: selectedUserId,
+        entry_fee_paid: currentTournament.entry_fee,
+        initial_chips: currentTournament.initial_chips
+      });
+      
+      setAddPlayerDialogOpen(false);
+      setSelectedUserId('');
+      
+      // Recargar jugadores para actualizar la lista
+      await loadPlayers(currentTournament.id);
+    } catch (error) {
+      console.error('Error agregando jugador:', error);
+    }
+  };
+
+  const handleOpenAddPlayerDialog = () => {
+    setAddPlayerDialogOpen(true);
+    loadAvailableUsers();
   };
 
   if (loading) {
@@ -178,6 +235,15 @@ const TournamentView: React.FC = () => {
                   Iniciar Torneo
                 </Button>
               )}
+              
+              <Button
+                variant="outlined"
+                color="primary"
+                startIcon={<PersonAddIcon />}
+                onClick={handleOpenAddPlayerDialog}
+              >
+                Inscribir Jugador
+              </Button>
               
               <Button
                 variant="outlined"
@@ -579,6 +645,61 @@ const TournamentView: React.FC = () => {
       </Card>
         </Grid>
       </Grid>
+
+      {/* Dialog para agregar jugador */}
+      <Dialog open={addPlayerDialogOpen} onClose={() => setAddPlayerDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Agregar Jugador al Torneo</DialogTitle>
+        <DialogContent>
+          <Box display="flex" flexDirection="column" gap={3} pt={1}>
+            <TextField
+              select
+              label="Seleccionar Usuario"
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              fullWidth
+              disabled={loadingUsers}
+            >
+              {availableUsersForTournament.map((user) => (
+                <MenuItem key={user.id} value={user.id}>
+                  {getUserDisplayName(user)} - {user.email}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            {/* Entry fee fijo del torneo, no editable */}
+            <TextField
+              label="Entry Fee"
+              type="number"
+              value={currentTournament?.entry_fee || 0}
+              fullWidth
+              InputProps={{ readOnly: true }}
+              helperText="Se usa el valor configurado en el torneo"
+            />
+
+            {/* Fichas iniciales fijas del torneo, no editable */}
+            <TextField
+              label="Fichas Iniciales"
+              type="number"
+              value={currentTournament?.initial_chips || 0}
+              fullWidth
+              InputProps={{ readOnly: true }}
+              helperText="Se usa el valor configurado en el torneo"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddPlayerDialogOpen(false)}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleAddPlayer}
+            variant="contained"
+            disabled={!selectedUserId}
+          >
+            Agregar
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

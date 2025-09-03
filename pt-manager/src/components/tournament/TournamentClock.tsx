@@ -83,7 +83,27 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
     }
   }, [tournamentId]);
 
-  // Cargar jugadores del torneo
+  // Cargar jugadores del torneo - versión optimizada
+  useEffect(() => {
+    const loadPlayersData = async () => {
+      if (!tournamentId || !isAdmin) return;
+
+      setLoadingPlayers(true);
+      try {
+        const response = await playerService.getTournamentPlayers(tournamentId);
+        setPlayers(response.players || []);
+      } catch (error) {
+        console.error('Error cargando jugadores:', error);
+        setPlayers([]);
+      } finally {
+        setLoadingPlayers(false);
+      }
+    };
+
+    loadPlayersData();
+  }, [tournamentId, isAdmin]); // Solo estas dependencias
+
+  // Mantener loadPlayers para uso manual
   const loadPlayers = useCallback(async () => {
     if (!tournamentId || !isAdmin) return;
 
@@ -98,11 +118,6 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
       setLoadingPlayers(false);
     }
   }, [tournamentId, isAdmin]);
-
-  // Cargar jugadores cuando el componente se monta o cambia el tournamentId
-  useEffect(() => {
-    loadPlayers();
-  }, [loadPlayers]);
 
 
 

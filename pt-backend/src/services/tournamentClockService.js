@@ -4,6 +4,8 @@ class TournamentClockService {
   constructor() {
     this.intervalId = null;
     this.isRunning = false;
+    this.hasActiveTournaments = false;
+    this.checkIntervalId = null;
   }
 
   /**
@@ -17,13 +19,16 @@ class TournamentClockService {
 
     console.log('⏰ Iniciando servicio de actualización automática del reloj...');
 
-    // Ejecutar cada 10 segundos
-    this.intervalId = setInterval(() => {
-      this.updateTournamentClocks();
-    }, 10000); // 10 segundos
+    // Verificar si hay torneos activos al inicio
+    this.checkForActiveTournaments();
+
+    // Verificar cada 60 segundos si hay torneos activos
+    this.checkIntervalId = setInterval(() => {
+      this.checkForActiveTournaments();
+    }, 60000); // 60 segundos
 
     this.isRunning = true;
-    console.log('✅ Servicio de actualización automática del reloj iniciado - actualizaciones cada 10 segundos');
+    console.log('✅ Servicio de actualización automática del reloj iniciado - verificaciones cada 60 segundos');
   }
 
   /**
@@ -33,8 +38,73 @@ class TournamentClockService {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
-      this.isRunning = false;
-      console.log('🛑 Servicio de actualización automática del reloj detenido');
+    }
+    if (this.checkIntervalId) {
+      clearInterval(this.checkIntervalId);
+      this.checkIntervalId = null;
+    }
+    this.isRunning = false;
+    this.hasActiveTournaments = false;
+    console.log('🛑 Servicio de actualización automática del reloj detenido');
+  }
+
+  /**
+   * Verifica si hay torneos activos y inicia/detiene el polling según sea necesario
+   */
+  async checkForActiveTournaments() {
+    try {
+      const { data: activeTournaments, error } = await supabase
+        .from('tournaments')
+        .select('id')
+        .eq('status', 'active')
+        .limit(1);
+
+      if (error) {
+        console.error('❌ Error verificando torneos activos:', error);
+        return;
+      }
+
+      const hasActive = activeTournaments && activeTournaments.length > 0;
+
+      if (hasActive && !this.hasActiveTournaments) {
+        // Hay torneos activos y no estábamos procesando - iniciar polling
+        console.log('🎯 [AUTO-UPDATE] Detectados torneos activos - iniciando actualización automática');
+        this.startClockPolling();
+        this.hasActiveTournaments = true;
+      } else if (!hasActive && this.hasActiveTournaments) {
+        // No hay torneos activos y estábamos procesando - detener polling
+        console.log('💤 [AUTO-UPDATE] No hay torneos activos - deteniendo actualización automática');
+        this.stopClockPolling();
+        this.hasActiveTournaments = false;
+      }
+    } catch (error) {
+      console.error('❌ Error en verificación de torneos activos:', error.message);
+    }
+  }
+
+  /**
+   * Inicia el polling de actualización de relojes
+   */
+  startClockPolling() {
+    if (this.intervalId) {
+      return; // Ya está ejecutándose
+    }
+
+    this.intervalId = setInterval(() => {
+      this.updateTournamentClocks();
+    }, 10000); // 10 segundos
+
+    console.log('🔄 [AUTO-UPDATE] Polling de relojes iniciado - actualizaciones cada 10 segundos');
+  }
+
+  /**
+   * Detiene el polling de actualización de relojes
+   */
+  stopClockPolling() {
+    if (this.intervalId) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+      console.log('⏹️ [AUTO-UPDATE] Polling de relojes detenido');
     }
   }
 
@@ -43,8 +113,6 @@ class TournamentClockService {
    */
   async updateTournamentClocks() {
     try {
-      console.log('🔄 [AUTO-UPDATE] Iniciando actualización automática de relojes...');
-
       // Obtener todos los torneos activos
       const { data: activeTournaments, error: tournamentsError } = await supabase
         .from('tournaments')
@@ -62,11 +130,12 @@ class TournamentClockService {
       }
 
       if (!activeTournaments || activeTournaments.length === 0) {
-        console.log('📭 No hay torneos activos para actualizar');
+        // Si no hay torneos activos, detener el polling
+        console.log('📭 [AUTO-UPDATE] No hay torneos activos - deteniendo polling');
+        this.stopClockPolling();
+        this.hasActiveTournaments = false;
         return;
       }
-
-      console.log(`📊 [AUTO-UPDATE] Procesando ${activeTournaments.length} torneo(s) activo(s)`);
 
       let updatedCount = 0;
 
@@ -79,8 +148,6 @@ class TournamentClockService {
 
       if (updatedCount > 0) {
         console.log(`✅ [AUTO-UPDATE] ${updatedCount} reloj(es) actualizado(s) automáticamente`);
-      } else {
-        console.log('📭 [AUTO-UPDATE] No se requirieron actualizaciones automáticas');
       }
 
     } catch (error) {

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Typography, Chip, IconButton, Tooltip } from '@mui/material';
 import { CheckCircle, ShoppingCart, AddBox, DeleteForever, Cancel } from '@mui/icons-material';
-import { TournamentPlayer } from '../../types';
+import { TournamentPlayer, Tournament, TournamentClock } from '../../types';
+import { canMakeRebuy, canMakeAddon, getRebuyStatusMessage, getAddonStatusMessage } from '../../utils/tournamentRules';
 
 interface TournamentConfig {
   entry_fee: number;
@@ -11,7 +12,9 @@ interface TournamentConfig {
 
 interface PlayerActionButtonsProps {
   player: TournamentPlayer;
+  tournament: Tournament;
   tournamentConfig: TournamentConfig;
+  clock: TournamentClock | null;
   onConfirmRegistration: (playerId: string) => Promise<void>;
   onRebuy: (playerId: string, amount: number, chips: number) => Promise<void>;
   onAddon: (playerId: string, amount: number, chips: number) => Promise<void>;
@@ -24,7 +27,9 @@ interface PlayerActionButtonsProps {
 
 const PlayerActionButtons: React.FC<PlayerActionButtonsProps> = ({
   player,
+  tournament,
   tournamentConfig,
+  clock,
   onConfirmRegistration,
   onRebuy,
   onAddon,
@@ -40,6 +45,13 @@ const PlayerActionButtons: React.FC<PlayerActionButtonsProps> = ({
   const [eliminatePosition, setEliminatePosition] = useState('');
   const [eliminatePoints, setEliminatePoints] = useState('');
   const [chipsAmount, setChipsAmount] = useState(player.current_chips.toString());
+
+  // Verificar si se pueden hacer rebuys y addons
+  const rebuyAllowed = canMakeRebuy(tournament, clock);
+  const addonAllowed = canMakeAddon(tournament, clock);
+  const rebuyStatusMessage = getRebuyStatusMessage(tournament, clock);
+  const addonStatusMessage = getAddonStatusMessage(tournament, clock);
+
 
   // Calcular valores automáticamente cuando se abre el modal
   const calculateEliminationValues = () => {
@@ -143,22 +155,24 @@ const PlayerActionButtons: React.FC<PlayerActionButtonsProps> = ({
         </Tooltip>
       )}
 
-      {/* Recompra - solo si está activo */}
+      {/* Recompra - solo si está activo y se permiten rebuys */}
       {player.is_active && (
-        <Tooltip title={`Recompra (€${tournamentConfig.entry_fee} → ${tournamentConfig.rebuy_chips} fichas)`}>
+        <Tooltip title={`Recompra (€${tournamentConfig.entry_fee} → ${tournamentConfig.rebuy_chips} fichas) - ${rebuyStatusMessage}`}>
           <IconButton
             size="large"
-            color="info"
+            color={rebuyAllowed ? "info" : "default"}
             onClick={handleRebuyConfirm}
+            disabled={!rebuyAllowed}
             sx={{
               width: 56,
               height: 56,
               border: '2px solid',
-              borderColor: 'info.main',
-              '&:hover': {
+              borderColor: rebuyAllowed ? 'info.main' : 'grey.400',
+              opacity: rebuyAllowed ? 1 : 0.5,
+              '&:hover': rebuyAllowed ? {
                 backgroundColor: 'info.main',
                 color: 'white'
-              }
+              } : {}
             }}
           >
             <ShoppingCart sx={{ fontSize: 28 }} />
@@ -166,22 +180,24 @@ const PlayerActionButtons: React.FC<PlayerActionButtonsProps> = ({
         </Tooltip>
       )}
 
-      {/* Addon - solo si está activo */}
+      {/* Addon - solo si está activo y se permiten addons */}
       {player.is_active && (
-        <Tooltip title={`Addon (€${tournamentConfig.entry_fee} → ${tournamentConfig.addon_chips} fichas)`}>
+        <Tooltip title={`Addon (€${tournamentConfig.entry_fee} → ${tournamentConfig.addon_chips} fichas) - ${addonStatusMessage}`}>
           <IconButton
             size="large"
-            color="secondary"
+            color={addonAllowed ? "secondary" : "default"}
             onClick={handleAddonConfirm}
+            disabled={!addonAllowed}
             sx={{
               width: 56,
               height: 56,
               border: '2px solid',
-              borderColor: 'secondary.main',
-              '&:hover': {
+              borderColor: addonAllowed ? 'secondary.main' : 'grey.400',
+              opacity: addonAllowed ? 1 : 0.5,
+              '&:hover': addonAllowed ? {
                 backgroundColor: 'secondary.main',
                 color: 'white'
-              }
+              } : {}
             }}
           >
             <AddBox sx={{ fontSize: 28 }} />

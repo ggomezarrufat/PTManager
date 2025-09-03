@@ -6,6 +6,16 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY || process.env.REACT
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 export default async function handler(req, res) {
+  // Configurar CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  // Manejar preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+
   // Solo permitir GET
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Método no permitido' });

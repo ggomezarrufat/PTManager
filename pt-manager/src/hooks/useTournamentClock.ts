@@ -7,6 +7,7 @@ interface ClockState {
   time_remaining_seconds: number;
   is_paused: boolean;
   last_updated: string;
+  total_pause_time_seconds?: number;
 }
 
 interface LevelChangedData {
@@ -46,7 +47,7 @@ export const useTournamentClock = ({
   const localTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastKnownStateRef = useRef<ClockState | null>(null);
   const clockStateRef = useRef<ClockState | null>(null);
-  const isCleaningUpRef = useRef(false);
+
 
   // Función para detener el timer local
   const stopLocalTimer = useCallback(() => {
@@ -156,7 +157,7 @@ export const useTournamentClock = ({
       setError('Error de conexión con el servidor');
       setConnectionStatus('error');
     }
-  }, [tournamentId, startLocalTimer, stopLocalTimer, updateLocalTimer]);
+  }, [tournamentId, startLocalTimer, stopLocalTimer, updateLocalTimer, onLevelChanged]);
 
   // Función para unirse al torneo
   const joinTournament = useCallback(async () => {
@@ -208,7 +209,7 @@ export const useTournamentClock = ({
       setError('Error de conexión con el servidor');
       setConnectionStatus('error');
     }
-  }, [tournamentId, userId, startLocalTimer, pollClockState, stopPolling]);
+  }, [tournamentId, userId, startLocalTimer, pollClockState]);
 
   useEffect(() => {
     console.log('🐛 useEffect principal: Ejecutando...');
@@ -323,7 +324,7 @@ export const useTournamentClock = ({
       console.error('Error al pausar reloj:', error);
       setError('Error de conexión al pausar reloj');
     }
-  }, [tournamentId, stopLocalTimer]);
+  }, [tournamentId, clockState?.time_remaining_seconds, onClockAction, stopLocalTimer]);
 
   const resumeClock = useCallback(async () => {
     if (!tournamentId) {
@@ -381,7 +382,7 @@ export const useTournamentClock = ({
       console.error('Error al reanudar reloj:', error);
       setError('Error de conexión al reanudar reloj');
     }
-  }, [tournamentId, startLocalTimer]);
+  }, [tournamentId, clockState?.time_remaining_seconds, onClockAction, startLocalTimer]);
 
   const adjustTime = useCallback(async (newSeconds: number) => {
     if (!tournamentId) {

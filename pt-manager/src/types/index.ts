@@ -40,6 +40,7 @@ export interface Tournament {
   addon_chips: number;
   max_rebuys: number;
   max_addons: number;
+  last_level_rebuy: number; // Último nivel en el cual se permiten recompras
   blind_structure: BlindLevel[];
   point_system: PointSystem;
   created_by: string;
@@ -133,6 +134,7 @@ export interface CreateTournamentForm {
   addon_chips: number;
   max_rebuys: number;
   max_addons: number;
+  last_level_rebuy: number; // Último nivel en el cual se permiten recompras
   blind_structure: BlindLevel[];
   point_system: PointSystem;
 }

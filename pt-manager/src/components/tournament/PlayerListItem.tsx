@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, CardContent, Typography, Box, Avatar, Divider } from '@mui/material';
-import { TournamentPlayer } from '../../types';
+import { TournamentPlayer, Tournament, TournamentClock } from '../../types';
 import PlayerActionButtons from './PlayerActionButtons';
 
 interface TournamentConfig {
@@ -11,7 +11,9 @@ interface TournamentConfig {
 
 interface PlayerListItemProps {
   player: TournamentPlayer;
+  tournament: Tournament;
   tournamentConfig: TournamentConfig;
+  clock: TournamentClock | null;
   onConfirmRegistration: (playerId: string) => Promise<void>;
   onRebuy: (playerId: string, amount: number, chips: number) => Promise<void>;
   onAddon: (playerId: string, amount: number, chips: number) => Promise<void>;
@@ -24,7 +26,9 @@ interface PlayerListItemProps {
 
 const PlayerListItem: React.FC<PlayerListItemProps> = ({
   player,
+  tournament,
   tournamentConfig,
+  clock,
   onConfirmRegistration,
   onRebuy,
   onAddon,
@@ -166,7 +170,9 @@ const PlayerListItem: React.FC<PlayerListItemProps> = ({
         {/* Botones de acción */}
         <PlayerActionButtons
           player={player}
+          tournament={tournament}
           tournamentConfig={tournamentConfig}
+          clock={clock}
           onConfirmRegistration={onConfirmRegistration}
           onRebuy={onRebuy}
           onAddon={onAddon}

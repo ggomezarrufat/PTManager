@@ -51,6 +51,7 @@ const CreateTournament: React.FC = () => {
   const [rebuyChips, setRebuyChips] = useState(1500);
   const [addonChips, setAddonChips] = useState(2000);
   const [maxRebuys, setMaxRebuys] = useState(3);
+  const [lastLevelRebuy, setLastLevelRebuy] = useState(3);
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<number | ''>('');
   
@@ -129,7 +130,8 @@ const CreateTournament: React.FC = () => {
         initial_chips: initialChips,
         rebuy_chips: rebuyChips,
         addon_chips: addonChips,
-        max_rebuys: maxRebuys
+        max_rebuys: maxRebuys,
+        last_level_rebuy: lastLevelRebuy
       }
     };
 
@@ -188,6 +190,7 @@ const CreateTournament: React.FC = () => {
           if (importData.tournament_config.rebuy_chips) setRebuyChips(importData.tournament_config.rebuy_chips);
           if (importData.tournament_config.addon_chips) setAddonChips(importData.tournament_config.addon_chips);
           if (importData.tournament_config.max_rebuys) setMaxRebuys(importData.tournament_config.max_rebuys);
+          if (importData.tournament_config.last_level_rebuy) setLastLevelRebuy(importData.tournament_config.last_level_rebuy);
         }
 
         setSuccess(`Estructura de blinds importada exitosamente (${importData.blind_structure.length} niveles)`);
@@ -234,6 +237,16 @@ const CreateTournament: React.FC = () => {
 
     if (initialChips < 1) {
       setError('Las fichas iniciales deben ser al menos 1');
+      return;
+    }
+
+    if (lastLevelRebuy < 1) {
+      setError('El último nivel de recompra debe ser al menos 1');
+      return;
+    }
+
+    if (lastLevelRebuy > blindStructure.length) {
+      setError(`El último nivel de recompra (${lastLevelRebuy}) no puede ser mayor que el número total de niveles (${blindStructure.length})`);
       return;
     }
 
@@ -288,6 +301,7 @@ const CreateTournament: React.FC = () => {
         rebuy_chips: rebuyChips,
         addon_chips: addonChips,
         max_rebuys: maxRebuys,
+        last_level_rebuy: lastLevelRebuy,
         blind_structure: blindStructure,
         point_system: pointSystem,
         season_id: selectedSeasonId || undefined
@@ -475,6 +489,35 @@ const CreateTournament: React.FC = () => {
                       fullWidth
                       inputProps={{ min: 0 }}
                     />
+                  </Grid>
+                  
+                  <Grid size={{xs: 12, md: 6}}>
+                    <TextField
+                      label="Último Nivel de Recompra"
+                      type="number"
+                      value={lastLevelRebuy}
+                      onChange={(e) => setLastLevelRebuy(parseInt(e.target.value))}
+                      fullWidth
+                      inputProps={{ min: 1 }}
+                      helperText="Último nivel en el cual se permiten recompras (inclusive)"
+                    />
+                  </Grid>
+                  
+                  <Grid size={{xs: 12, md: 6}}>
+                    <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+                      <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
+                        💡 Reglas de Rebuys y Addons:
+                      </Typography>
+                      <Typography variant="caption" display="block">
+                        • <strong>Rebuys:</strong> Permitidos hasta el nivel {lastLevelRebuy} inclusive
+                      </Typography>
+                      <Typography variant="caption" display="block">
+                        • <strong>Addons:</strong> Solo disponibles durante el primer nivel de pausa
+                      </Typography>
+                      <Typography variant="caption" display="block">
+                        • Después del nivel {lastLevelRebuy}, los rebuys se deshabilitan automáticamente
+                      </Typography>
+                    </Box>
                   </Grid>
                             </Grid>
           </Paper>

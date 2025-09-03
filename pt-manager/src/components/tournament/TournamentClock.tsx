@@ -1020,11 +1020,13 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
                   <PlayerListItem
                     key={player.id}
                     player={player}
+                    tournament={tournamentInfo}
                     tournamentConfig={{
                       entry_fee: tournamentInfo?.entry_fee || 0,
                       rebuy_chips: tournamentInfo?.rebuy_chips || 0,
                       addon_chips: tournamentInfo?.addon_chips || 0,
                     }}
+                    clock={clockState ? { ...clockState, total_pause_time_seconds: clockState.total_pause_time_seconds || 0 } : null}
                     onConfirmRegistration={handleConfirmRegistration}
                     onRebuy={handleRebuy}
                     onAddon={handleAddon}

@@ -114,6 +114,9 @@ const CreateTournament: React.FC = () => {
   };
 
   const handleBlindLevelChange = (index: number, field: keyof BlindLevel, value: number) => {
+    // Validar que el valor sea un número válido
+    if (isNaN(value) || value < 0) return;
+    
     const newStructure = [...blindStructure];
     newStructure[index] = { ...newStructure[index], [field]: value };
     setBlindStructure(newStructure);
@@ -159,6 +162,11 @@ const CreateTournament: React.FC = () => {
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
+        if (!content) {
+          setError('No se pudo leer el contenido del archivo');
+          return;
+        }
+        
         const importData = JSON.parse(content);
 
         // Validar que el archivo tenga la estructura correcta
@@ -170,8 +178,29 @@ const CreateTournament: React.FC = () => {
         // Validar cada nivel de blind
         for (let i = 0; i < importData.blind_structure.length; i++) {
           const level = importData.blind_structure[i];
+          
+          // Validar que existan los campos requeridos
           if (!level.level || !level.small_blind || !level.big_blind || !level.duration_minutes) {
-            setError(`Nivel ${i + 1}: Estructura incompleta o inválida`);
+            setError(`Nivel ${i + 1}: Faltan campos obligatorios (level, small_blind, big_blind, duration_minutes)`);
+            return;
+          }
+          
+          // Validar que los valores sean números válidos
+          if (isNaN(Number(level.level)) || isNaN(Number(level.small_blind)) || 
+              isNaN(Number(level.big_blind)) || isNaN(Number(level.duration_minutes))) {
+            setError(`Nivel ${i + 1}: Los valores deben ser números válidos`);
+            return;
+          }
+          
+          // Validar que los valores sean positivos
+          if (level.small_blind <= 0 || level.big_blind <= 0 || level.duration_minutes <= 0) {
+            setError(`Nivel ${i + 1}: Los valores deben ser mayores que cero`);
+            return;
+          }
+          
+          // Validar que big_blind sea mayor que small_blind
+          if (level.big_blind <= level.small_blind) {
+            setError(`Nivel ${i + 1}: Big blind debe ser mayor que small blind`);
             return;
           }
         }
@@ -201,7 +230,11 @@ const CreateTournament: React.FC = () => {
         }
 
       } catch (error) {
-        setError('Error al leer el archivo JSON. Verifica que el formato sea correcto.');
+        if (error instanceof SyntaxError) {
+          setError(`Error de formato JSON: ${error.message}. Verifica que el archivo tenga una estructura JSON válida.`);
+        } else {
+          setError('Error inesperado al procesar el archivo. Verifica que sea un archivo JSON válido.');
+        }
         console.error('Error parsing JSON:', error);
       }
     };
@@ -654,7 +687,10 @@ const CreateTournament: React.FC = () => {
                             <TextField
                               type="number"
                               value={level.small_blind}
-                              onChange={(e) => handleBlindLevelChange(index, 'small_blind', parseInt(e.target.value))}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value) || 0;
+                                handleBlindLevelChange(index, 'small_blind', value);
+                              }}
                               size="small"
                               inputProps={{ min: 0 }}
                             />
@@ -663,7 +699,10 @@ const CreateTournament: React.FC = () => {
                             <TextField
                               type="number"
                               value={level.big_blind}
-                              onChange={(e) => handleBlindLevelChange(index, 'big_blind', parseInt(e.target.value))}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value) || 0;
+                                handleBlindLevelChange(index, 'big_blind', value);
+                              }}
                               size="small"
                               inputProps={{ min: 0 }}
                             />
@@ -672,7 +711,10 @@ const CreateTournament: React.FC = () => {
                             <TextField
                               type="number"
                               value={level.duration_minutes}
-                              onChange={(e) => handleBlindLevelChange(index, 'duration_minutes', parseInt(e.target.value))}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value) || 0;
+                                handleBlindLevelChange(index, 'duration_minutes', value);
+                              }}
                               size="small"
                               inputProps={{ min: 1 }}
                             />
@@ -681,7 +723,10 @@ const CreateTournament: React.FC = () => {
                             <TextField
                               type="number"
                               value={level.antes || ''}
-                              onChange={(e) => handleBlindLevelChange(index, 'antes', parseInt(e.target.value) || 0)}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value) || 0;
+                                handleBlindLevelChange(index, 'antes', value);
+                              }}
                               size="small"
                               inputProps={{ min: 0 }}
                               placeholder="Opcional"

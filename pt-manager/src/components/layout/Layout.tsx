@@ -58,18 +58,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { text: 'Inicio', icon: <HomeIcon />, path: '/' },
     { text: 'Torneos', icon: <TournamentIcon />, path: '/tournaments' },
     { text: 'Temporadas', icon: <CalendarIcon />, path: '/seasons', adminOnly: true },
-    { text: 'Usuarios', icon: <PeopleIcon />, path: '/users', adminOnly: true },
+    { text: 'Usuarios', icon: <PeopleIcon />, path: '/admin/users', adminOnly: true },
     { text: 'Reportes', icon: <AssessmentIcon />, path: '/reports' },
     { text: 'Perfil', icon: <SettingsIcon />, path: '/profile' },
   ];
 
   // Elementos del menú solo para administradores
-  const adminMenuItems = [
-    {
-      text: 'Administrar Usuarios',
-      icon: <AdminPanelSettings />,
-      path: '/admin/users'
-    }
+  const adminMenuItems: any[] = [
+    // Los elementos de admin ya están en menuItems con adminOnly: true
   ];
 
   const handleDrawerToggle = () => {

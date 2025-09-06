@@ -85,6 +85,16 @@ const UserAdmin: React.FC = () => {
 
       console.log('✅ UserAdmin: Usuarios cargados exitosamente:', response.users?.length || 0);
       const usersList = response.users || [];
+      
+      // Debug: Verificar avatares en los usuarios
+      usersList.forEach((userData, index) => {
+        console.log(`👤 Usuario ${index + 1}:`, {
+          name: userData.name,
+          hasAvatar: !!userData.avatar_url,
+          avatarUrl: userData.avatar_url
+        });
+      });
+      
       setUsers(usersList);
       setFilteredUsers(usersList);
     } catch (err: unknown) {
@@ -274,8 +284,12 @@ const UserAdmin: React.FC = () => {
 
   return (
     <Box sx={{ 
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column',
       p: { xs: 2, md: 3 },
-      pb: { xs: 8, md: 3 } // Espacio para bottom navigation en móvil
+      pb: { xs: 8, md: 3 }, // Espacio para bottom navigation en móvil
+      overflow: 'hidden'
     }}>
       {/* Header */}
       <Box sx={{ 
@@ -341,7 +355,8 @@ const UserAdmin: React.FC = () => {
       {/* Contenido principal */}
       <Box sx={{ 
         flex: 1, 
-        overflow: 'auto'
+        overflow: 'auto',
+        minHeight: 0 // Esto es importante para que el flexbox funcione correctamente
       }}>
         {filteredUsers.length === 0 ? (
           <Card sx={{ textAlign: 'center', py: 4 }}>
@@ -370,7 +385,7 @@ const UserAdmin: React.FC = () => {
             </CardContent>
           </Card>
         ) : (
-          <Grid container spacing={2}>
+          <Grid container spacing={2} sx={{ pb: 2 }}>
             {filteredUsers.map((userData) => (
               <Grid size={{xs: 12, sm: 6, md: 4}} key={userData.id}>
                 <Card 
@@ -387,20 +402,33 @@ const UserAdmin: React.FC = () => {
                     {/* Header del usuario */}
                     <Box sx={{ mb: 2 }}>
                       <Box display="flex" alignItems="center" gap={2} mb={1}>
-                        <Avatar sx={{ 
-                          bgcolor: userData.is_admin ? 'primary.main' : 'grey.500',
-                          width: 48,
-                          height: 48
-                        }}>
-                          {getUserDisplayName(userData).charAt(0)}
+                        <Avatar 
+                          src={userData.avatar_url}
+                          sx={{ 
+                            bgcolor: userData.avatar_url ? 'transparent' : (userData.is_admin ? 'primary.main' : 'grey.500'),
+                            width: 48,
+                            height: 48
+                          }}
+                          onError={() => {
+                            console.log('❌ Error cargando avatar para usuario:', userData.name, 'URL:', userData.avatar_url);
+                          }}
+                          onLoad={() => {
+                            console.log('✅ Avatar cargado exitosamente para usuario:', userData.name, 'URL:', userData.avatar_url);
+                          }}
+                        >
+                          {(!userData.avatar_url || userData.avatar_url === '') && (
+                            <Typography variant="h6" sx={{ fontSize: 18, fontWeight: 'bold' }}>
+                              {getUserDisplayName(userData).charAt(0).toUpperCase()}
+                            </Typography>
+                          )}
                         </Avatar>
                         <Box>
                           <Typography variant="h6" component="h3" sx={{ fontWeight: 600 }}>
-                            {getUserDisplayName(userData)}
+                            {userData.name}
                           </Typography>
-                          {userData.nickname && userData.name !== userData.nickname && (
+                          {userData.nickname && (
                             <Typography variant="body2" color="text.secondary">
-                              {getUserDisplayName(userData)}
+                              {userData.nickname}
                             </Typography>
                           )}
                         </Box>

@@ -101,26 +101,59 @@ const UserProfile: React.FC = () => {
   // Guardar cambios del perfil
   const handleSaveProfile = async () => {
     try {
+      console.log('🔄 UserProfile: Iniciando guardado de perfil...');
+      console.log('📝 UserProfile: Datos a guardar:', {
+        userId: user?.id,
+        name: editForm.name,
+        nickname: editForm.nickname
+      });
+
+      // Verificar si el perfil existe antes de actualizar
+      const { data: existingProfile, error: checkError } = await supabase
+        .from('profiles')
+        .select('id, name, nickname, email')
+        .eq('id', user?.id)
+        .single();
+
+      console.log('🔍 UserProfile: Verificando perfil existente:', { 
+        existingProfile, 
+        checkError,
+        userIdType: typeof user?.id,
+        userId: user?.id 
+      });
+
+      if (!existingProfile) {
+        throw new Error('El perfil no existe en la base de datos');
+      }
+
       setLoading(true);
       setError(null);
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .update({
           name: editForm.name,
-          nickname: editForm.nickname
+          nickname: editForm.nickname,
+          updated_at: new Date().toISOString()
         })
-        .eq('id', user?.id);
+        .eq('id', user?.id)
+        .select();
+
+      console.log('📊 UserProfile: Respuesta de Supabase:', { data, error });
 
       if (error) {
+        console.error('❌ UserProfile: Error en la actualización:', error);
         throw error;
       }
+
+      console.log('✅ UserProfile: Perfil actualizado exitosamente:', data);
 
       // Actualizar estado local
       setProfile(prev => prev ? {
         ...prev,
         name: editForm.name,
-        nickname: editForm.nickname
+        nickname: editForm.nickname,
+        updated_at: new Date().toISOString()
       } : null);
 
       setIsEditing(false);
@@ -129,8 +162,9 @@ const UserProfile: React.FC = () => {
       // Limpiar mensaje de éxito después de 3 segundos
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      console.error('Error guardando perfil:', err);
-      setError('Error al guardar el perfil');
+      console.error('❌ UserProfile: Error guardando perfil:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      setError(`Error al guardar el perfil: ${errorMessage}`);
     } finally {
       setLoading(false);
     }

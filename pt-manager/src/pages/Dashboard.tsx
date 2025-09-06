@@ -27,8 +27,7 @@ import {
   Casino,
   PersonAdd,
   PersonRemove,
-  EmojiEvents,
-  Person
+  EmojiEvents
 } from '@mui/icons-material';
 import { useTournamentStore } from '../store/tournamentStore';
 import { useAuthStore } from '../store/authStore';
@@ -94,6 +93,17 @@ const Dashboard: React.FC = () => {
         count: response.leaderboard?.length || 0,
         data: response.leaderboard
       });
+      
+      // Debug: Verificar avatares en el leaderboard
+      if (response.leaderboard) {
+        response.leaderboard.forEach((entry, index) => {
+          console.log(`👤 Usuario ${index + 1}:`, {
+            name: entry.name,
+            hasAvatar: !!entry.avatar_url,
+            avatarUrl: entry.avatar_url
+          });
+        });
+      }
       setLeaderboard(response.leaderboard);
     } catch (err) {
       console.error('❌ Dashboard: Error cargando leaderboard:', err);
@@ -432,8 +442,18 @@ const Dashboard: React.FC = () => {
                               height: 32,
                               bgcolor: entry.avatar_url ? 'transparent' : 'primary.main'
                             }}
+                            onError={() => {
+                              console.log('❌ Error cargando avatar para usuario:', entry.name, 'URL:', entry.avatar_url);
+                            }}
+                            onLoad={() => {
+                              console.log('✅ Avatar cargado exitosamente para usuario:', entry.name, 'URL:', entry.avatar_url);
+                            }}
                           >
-                            {!entry.avatar_url && <Person sx={{ fontSize: 16 }} />}
+                            {(!entry.avatar_url || entry.avatar_url === '') && (
+                              <Typography variant="caption" sx={{ fontSize: 12, fontWeight: 'bold' }}>
+                                {entry.name ? entry.name.charAt(0).toUpperCase() : '?'}
+                              </Typography>
+                            )}
                           </Avatar>
                         </TableCell>
                         <TableCell>

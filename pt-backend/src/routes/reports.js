@@ -188,6 +188,13 @@ router.get('/leaderboard', authenticateToken, async (req, res, next) => {
       data: tournamentPlayers
     });
 
+    // Buscar específicamente al usuario "Carlos Javier pinto"
+    const carlosPlayer = tournamentPlayers?.find(tp => {
+      // Necesitamos verificar si este user_id corresponde a Carlos
+      return tp.user_id;
+    });
+    console.log('🔍 Reports: Buscando usuario Carlos en tournament_players:', carlosPlayer);
+
     if (tpError) {
       console.error('Error fetching tournament players for leaderboard:', tpError);
       throw tpError;
@@ -204,6 +211,23 @@ router.get('/leaderboard', authenticateToken, async (req, res, next) => {
         });
       }
     });
+
+    // Obtener todos los usuarios únicos que han participado en torneos (incluso con 0 puntos)
+    const allParticipatingUserIds = [...new Set(tournamentPlayers.map(tp => tp.user_id).filter(Boolean))];
+    console.log('👥 Reports: Todos los usuarios que han participado en torneos:', {
+      count: allParticipatingUserIds.length,
+      userIds: allParticipatingUserIds
+    });
+
+    console.log('📊 Reports: userPointsMap después de procesar:', {
+      hasData: userPointsMap.size > 0,
+      count: userPointsMap.size,
+      entries: Array.from(userPointsMap.entries()).map(([userId, stats]) => ({
+        userId,
+        total_points: stats.total_points,
+        tournaments_played: stats.tournaments_played
+      }))
+    });
     
     console.log('📊 Reports: userPointsMap procesado:', {
       hasData: userPointsMap.size > 0,
@@ -211,21 +235,39 @@ router.get('/leaderboard', authenticateToken, async (req, res, next) => {
       data: Array.from(userPointsMap.entries())
     });
 
-    // Obtener perfiles de los usuarios
-    const userIds = Array.from(userPointsMap.keys());
+    // Obtener perfiles de TODOS los usuarios que han participado en torneos (incluso con 0 puntos)
+    console.log('🔍 Reports: userIds para leaderboard (todos los participantes):', allParticipatingUserIds);
+    
     const { data: profiles, error: profilesError } = await supabase
       .from('profiles')
       .select('id, name, nickname, email, avatar_url')
-      .in('id', userIds);
+      .in('id', allParticipatingUserIds);
 
     if (profilesError) {
       console.error('Error fetching profiles for leaderboard:', profilesError);
       throw profilesError;
     }
 
+    console.log('👥 Reports: Perfiles obtenidos:', {
+      count: profiles?.length || 0,
+      profiles: profiles?.map(p => ({
+        id: p.id,
+        name: p.name,
+        hasAvatar: !!p.avatar_url,
+        avatarUrl: p.avatar_url
+      }))
+    });
+
     // Combinar datos y construir leaderboard
     const leaderboard = profiles.map(profile => {
       const stats = userPointsMap.get(profile.id) || { total_points: 0, tournaments_played: 0 };
+      
+      // Si no hay estadísticas en el mapa, calcular tournaments_played desde tournament_players
+      if (!userPointsMap.has(profile.id)) {
+        const userTournaments = tournamentPlayers.filter(tp => tp.user_id === profile.id);
+        stats.tournaments_played = userTournaments.length;
+      }
+      
       return {
         user_id: profile.id,
         name: profile.name,
@@ -235,12 +277,24 @@ router.get('/leaderboard', authenticateToken, async (req, res, next) => {
         total_points: stats.total_points,
         tournaments_played: stats.tournaments_played
       };
-    }).sort((a, b) => b.total_points - a.total_points); // Ordenar de mayor a menor puntos
+    }).sort((a, b) => {
+      // Ordenar primero por puntos (mayor a menor), luego por nombre (alfabético)
+      if (b.total_points !== a.total_points) {
+        return b.total_points - a.total_points;
+      }
+      return a.name.localeCompare(b.name);
+    });
 
     console.log('🏆 Reports: Leaderboard final:', {
       hasData: leaderboard.length > 0,
       count: leaderboard.length,
-      data: leaderboard
+      data: leaderboard.map(entry => ({
+        name: entry.name,
+        total_points: entry.total_points,
+        tournaments_played: entry.tournaments_played,
+        hasAvatar: !!entry.avatar_url,
+        avatarUrl: entry.avatar_url
+      }))
     });
 
     res.json({ leaderboard });

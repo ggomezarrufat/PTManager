@@ -88,9 +88,8 @@ const TournamentList: React.FC = () => {
   };
 
   const handleEditTournament = (tournament: Tournament) => {
-    // Por ahora, navegar a la vista del torneo para editar
-    // TODO: Implementar página de edición completa
-    navigate(`/tournament/${tournament.id}`);
+    // Navegar a la página de gestión del torneo para editar
+    navigate(`/tournament/${tournament.id}/manage`);
   };
 
   const handleViewTournament = (tournament: Tournament) => {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem } from '@mui/material';
-import { PlayArrow, Pause, SkipNext, SkipPrevious, People, Assessment, Stop, PersonAdd } from '@mui/icons-material';
+import { Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, FormControlLabel, Switch, Stack } from '@mui/material';
+import { PlayArrow, Pause, SkipNext, SkipPrevious, People, Assessment, Stop, PersonAdd, ShoppingCart } from '@mui/icons-material';
 import { useTournamentClock } from '../../hooks/useTournamentClock';
 import { useAuthStore } from '../../store/authStore';
 import { tournamentService, playerService, rebuyService, addonService, API_BASE_URL } from '../../services/apiService';
@@ -55,6 +55,9 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   // Estado para los jugadores del torneo
   const [players, setPlayers] = useState<TournamentPlayer[]>([]);
   const [loadingPlayers, setLoadingPlayers] = useState(false);
+  
+  // Estado para el filtro de jugadores
+  const [showOnlyActive, setShowOnlyActive] = useState(false);
 
   // Estado para el diálogo de confirmación de finalización
   const [finishTournamentDialogOpen, setFinishTournamentDialogOpen] = useState(false);
@@ -66,6 +69,10 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   const [selectedUserId, setSelectedUserId] = useState('');
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [addingPlayer, setAddingPlayer] = useState(false);
+  
+  // Filtrar jugadores según el switch
+  const activePlayers = players.filter(p => p.is_active && !p.is_eliminated);
+  const filteredPlayers = showOnlyActive ? activePlayers : players;
 
   // Cargar información del torneo
   useEffect(() => {
@@ -855,6 +862,41 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
 
             <Button
               variant="contained"
+              startIcon={<ShoppingCart />}
+              onClick={() => navigate(`/tournament/${tournamentId}/rebuys`)}
+              color="info"
+              disabled={!isConnected}
+              size="large"
+              sx={{
+                border: '2px solid',
+                borderColor: 'info.main',
+                '&:hover': {
+                  backgroundColor: 'info.dark',
+                  borderColor: 'info.dark'
+                },
+                position: 'relative'
+              }}
+            >
+              Gestionar Recompras
+              {players.filter(p => p.is_active).length > 0 && (
+                <Chip
+                  size="small"
+                  label={players.filter(p => p.is_active).length}
+                  color="secondary"
+                  sx={{
+                    position: 'absolute',
+                    top: -8,
+                    right: -8,
+                    minWidth: 24,
+                    height: 24,
+                    fontSize: '0.75rem'
+                  }}
+                />
+              )}
+            </Button>
+
+            <Button
+              variant="contained"
               startIcon={<Stop />}
               onClick={() => setFinishTournamentDialogOpen(true)}
               color="error"
@@ -903,6 +945,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
                     <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Small Blind</TableCell>
                     <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Big Blind</TableCell>
                     <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Duración</TableCell>
+                    <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Tipo</TableCell>
                     <TableCell sx={{ color: 'white', fontWeight: 'bold' }}>Estado</TableCell>
                   </TableRow>
                 </TableHead>
@@ -960,6 +1003,33 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
                           </Typography>
                         </TableCell>
                         <TableCell>
+                          {level.is_pause ? (
+                            <Box display="flex" flexDirection="column" gap={0.5}>
+                              <Chip
+                                label="PAUSA"
+                                color="warning"
+                                size="small"
+                                variant="filled"
+                              />
+                              {level.addons_allowed && (
+                                <Chip
+                                  label="ADDONS"
+                                  color="info"
+                                  size="small"
+                                  variant="outlined"
+                                />
+                              )}
+                            </Box>
+                          ) : (
+                            <Chip
+                              label="JUEGO"
+                              color="primary"
+                              size="small"
+                              variant="outlined"
+                            />
+                          )}
+                        </TableCell>
+                        <TableCell>
                           <Chip
                             label={
                               isCurrentLevel ? 'En Progreso' :
@@ -991,7 +1061,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
             <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
               <Typography variant="h6" sx={{ color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
                 <People />
-                Jugadores del Torneo ({players.length})
+                Jugadores del Torneo ({filteredPlayers.length})
               </Typography>
               <Box display="flex" gap={1}>
                 <Button
@@ -1017,6 +1087,36 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
               </Box>
             </Box>
 
+            {/* Filtro de jugadores */}
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+              <Typography variant="body2" color="text.secondary">
+                Mostrando {filteredPlayers.length} de {players.length} jugadores
+              </Typography>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={showOnlyActive}
+                    onChange={(e) => setShowOnlyActive(e.target.checked)}
+                    color="primary"
+                    size="small"
+                  />
+                }
+                label={
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <Typography variant="body2">
+                      {showOnlyActive ? 'Solo activos' : 'Todos los jugadores'}
+                    </Typography>
+                    <Chip 
+                      label={showOnlyActive ? `${activePlayers.length} activos` : `${players.length} total`}
+                      size="small"
+                      color={showOnlyActive ? 'success' : 'default'}
+                      variant="outlined"
+                    />
+                  </Stack>
+                }
+              />
+            </Box>
+
             {loadingPlayers ? (
               <Box textAlign="center" py={3}>
                 <Typography variant="body2" color="text.secondary">
@@ -1029,9 +1129,15 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
                   No hay jugadores registrados en este torneo
                 </Typography>
               </Box>
+            ) : filteredPlayers.length === 0 ? (
+              <Box textAlign="center" py={3}>
+                <Typography variant="body2" color="text.secondary">
+                  {showOnlyActive ? 'No hay jugadores activos en este momento' : 'No hay jugadores para mostrar'}
+                </Typography>
+              </Box>
             ) : (
               <Box sx={{ maxHeight: '60vh', overflow: 'auto' }}>
-                {players.map((player) => (
+                {filteredPlayers.map((player) => (
                   <PlayerListItem
                     key={player.id}
                     player={player}

@@ -1021,6 +1021,57 @@ router.put('/players/:playerId/chips',
 
 /**
  * @swagger
+ * /api/players/{playerId}/position-points:
+ *   put:
+ *     summary: Actualizar posición y puntos de un jugador en torneo finalizado
+ *     tags: [Players]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: playerId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - final_position
+ *               - points_earned
+ *               - updated_by
+ *             properties:
+ *               final_position:
+ *                 type: integer
+ *                 minimum: 1
+ *                 description: Posición final del jugador
+ *               points_earned:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: Puntos obtenidos por el jugador
+ *               updated_by:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del administrador que actualiza
+ *     responses:
+ *       200:
+ *         description: Posición y puntos actualizados exitosamente
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       403:
+ *         description: No autorizado (solo administradores)
+ *       404:
+ *         description: Jugador no encontrado
+ */
+
+/**
+ * @swagger
  * /api/players/{playerId}/confirm-registration:
  *   put:
  *     summary: Confirmar inscripción de un jugador
@@ -1050,6 +1101,142 @@ router.put('/players/:playerId/chips',
  *       200:
  *         description: Inscripción confirmada exitosamente
  */
+router.put('/players/:playerId/position-points',
+  authenticateToken,
+  requireAdmin,
+  [
+    param('playerId').isUUID().withMessage('Player ID debe ser un UUID válido'),
+    body('final_position').isInt({ min: 1 }).withMessage('Final position debe ser un entero positivo'),
+    body('points_earned').isInt({ min: 0 }).withMessage('Points earned debe ser un entero no negativo'),
+    body('updated_by').isUUID().withMessage('Updated by debe ser un UUID válido')
+  ],
+  async (req, res, next) => {
+    try {
+      console.log('🔍 [position-points] Iniciando actualización:', {
+        playerId: req.params.playerId,
+        body: req.body,
+        user: req.user
+      });
+
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        console.log('❌ [position-points] Errores de validación:', errors.array());
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'Datos de entrada inválidos',
+          details: errors.array()
+        });
+      }
+
+      const { playerId } = req.params;
+      const { final_position, points_earned, updated_by } = req.body;
+
+      console.log('🔍 [position-points] Datos extraídos:', {
+        playerId,
+        final_position,
+        points_earned,
+        updated_by
+      });
+
+      // Verificar que el updated_by coincida con el usuario autenticado
+      if (updated_by !== req.user?.id) {
+        return res.status(403).json({
+          error: 'Forbidden',
+          message: 'El ID de administrador no coincide con el usuario autenticado'
+        });
+      }
+
+      // Verificar que el jugador existe y obtener información del torneo
+      console.log('🔍 [position-points] Buscando jugador:', playerId);
+      const { data: playerData, error: playerError } = await supabase
+        .from('tournament_players')
+        .select('tournament_id, is_eliminated')
+        .eq('id', playerId)
+        .single();
+
+      console.log('🔍 [position-points] Resultado búsqueda jugador:', {
+        playerData,
+        playerError
+      });
+
+      if (playerError || !playerData) {
+        console.log('❌ [position-points] Jugador no encontrado:', playerError);
+        return res.status(404).json({
+          error: 'Player not found',
+          message: 'Jugador no encontrado'
+        });
+      }
+
+      // Verificar que el torneo esté finalizado
+      console.log('🔍 [position-points] Buscando torneo:', playerData.tournament_id);
+      const { data: tournament, error: tournamentError } = await supabase
+        .from('tournaments')
+        .select('status')
+        .eq('id', playerData.tournament_id)
+        .single();
+
+      console.log('🔍 [position-points] Resultado búsqueda torneo:', {
+        tournament,
+        tournamentError
+      });
+
+      if (tournamentError || !tournament) {
+        console.log('❌ [position-points] Torneo no encontrado:', tournamentError);
+        return res.status(404).json({
+          error: 'Tournament not found',
+          message: 'Torneo no encontrado'
+        });
+      }
+
+      if (tournament.status !== 'finished') {
+        console.log('❌ [position-points] Torneo no finalizado:', tournament.status);
+        return res.status(400).json({
+          error: 'Invalid Tournament Status',
+          message: 'Solo se pueden editar posiciones y puntos en torneos finalizados'
+        });
+      }
+
+      // Actualizar posición y puntos del jugador
+      console.log('🔍 [position-points] Actualizando jugador:', {
+        playerId,
+        final_position,
+        points_earned
+      });
+
+      const { data: updatedPlayer, error } = await supabase
+        .from('tournament_players')
+        .update({
+          final_position,
+          points_earned,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', playerId)
+        .select()
+        .single();
+
+      console.log('🔍 [position-points] Resultado actualización:', {
+        updatedPlayer,
+        error
+      });
+
+      if (error) {
+        console.error('❌ [position-points] Error actualizando posición y puntos:', error);
+        throw error;
+      }
+
+      console.log('✅ [position-points] Actualización exitosa');
+      res.json({
+        message: 'Posición y puntos actualizados exitosamente',
+        player: updatedPlayer
+      });
+
+    } catch (error) {
+      console.error('❌ [position-points] Error general:', error);
+      next(error);
+    }
+  }
+);
+
 router.put('/players/:playerId/confirm-registration',
   authenticateToken,
   requireAdmin,

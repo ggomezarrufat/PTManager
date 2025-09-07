@@ -7,7 +7,24 @@ import { Tournament, TournamentClock } from '../types';
  * @returns true si se permiten rebuys, false en caso contrario
  */
 export const canMakeRebuy = (tournament: Tournament, clock: TournamentClock | null): boolean => {
-  if (!clock) return false;
+  if (!clock) {
+    console.log('🚫 canMakeRebuy: No hay clock disponible');
+    return false;
+  }
+  
+  // Verificar si last_level_rebuy está definido
+  if (tournament.last_level_rebuy === undefined || tournament.last_level_rebuy === null) {
+    console.log('⚠️ canMakeRebuy: last_level_rebuy no está definido, usando valor por defecto de 5');
+    tournament.last_level_rebuy = 5; // Valor por defecto
+  }
+  
+  console.log('🔍 canMakeRebuy: Verificando condiciones de rebuy:', {
+    current_level: clock.current_level,
+    last_level_rebuy: tournament.last_level_rebuy,
+    tournament_id: tournament.id,
+    tournament_name: tournament.name,
+    can_rebuy: clock.current_level <= tournament.last_level_rebuy
+  });
   
   // Los rebuys se permiten hasta el nivel last_level_rebuy inclusive
   return clock.current_level <= tournament.last_level_rebuy;
@@ -20,11 +37,36 @@ export const canMakeRebuy = (tournament: Tournament, clock: TournamentClock | nu
  * @returns true si se permiten addons, false en caso contrario
  */
 export const canMakeAddon = (tournament: Tournament, clock: TournamentClock | null): boolean => {
-  if (!clock) return false;
+  if (!clock) {
+    console.log('🚫 canMakeAddon: No hay clock disponible');
+    return false;
+  }
   
-  // Los addons solo se permiten durante el primer nivel de pausa
-  // Esto significa que el reloj debe estar pausado y en el nivel 1
-  return clock.is_paused && clock.current_level === 1;
+  // Obtener el nivel actual de la estructura de blinds
+  const currentLevelData = tournament.blind_structure?.[clock.current_level - 1];
+  
+  console.log('🔍 canMakeAddon: Verificando condiciones de addon:', {
+    current_level: clock.current_level,
+    is_paused: clock.is_paused,
+    level_is_pause: currentLevelData?.is_pause,
+    addons_allowed: currentLevelData?.addons_allowed,
+    tournament_id: tournament.id
+  });
+  
+  // Los addons se permiten si:
+  // 1. El torneo está pausado Y
+  // 2. El nivel actual está marcado como pausa Y
+  // 3. En ese nivel se permiten addons
+  if (clock.is_paused && currentLevelData?.is_pause && currentLevelData?.addons_allowed) {
+    return true;
+  }
+  
+  // Mantener compatibilidad con la lógica anterior (primer nivel de pausa)
+  if (clock.is_paused && clock.current_level === 1) {
+    return true;
+  }
+  
+  return false;
 };
 
 /**
@@ -36,11 +78,14 @@ export const canMakeAddon = (tournament: Tournament, clock: TournamentClock | nu
 export const getRebuyStatusMessage = (tournament: Tournament, clock: TournamentClock | null): string => {
   if (!clock) return 'Reloj no disponible';
   
+  // Asegurar que last_level_rebuy esté definido
+  const lastLevelRebuy = tournament.last_level_rebuy ?? 5;
+  
   if (canMakeRebuy(tournament, clock)) {
-    const remainingLevels = tournament.last_level_rebuy - clock.current_level + 1;
+    const remainingLevels = lastLevelRebuy - clock.current_level + 1;
     return `Rebuys permitidos (${remainingLevels} nivel${remainingLevels > 1 ? 'es' : ''} restante${remainingLevels > 1 ? 's' : ''})`;
   } else {
-    return `Rebuys no permitidos (nivel ${clock.current_level} > ${tournament.last_level_rebuy})`;
+    return `Rebuys no permitidos (nivel ${clock.current_level} > ${lastLevelRebuy})`;
   }
 };
 
@@ -53,15 +98,23 @@ export const getRebuyStatusMessage = (tournament: Tournament, clock: TournamentC
 export const getAddonStatusMessage = (tournament: Tournament, clock: TournamentClock | null): string => {
   if (!clock) return 'Reloj no disponible';
   
+  const currentLevelData = tournament.blind_structure?.[clock.current_level - 1];
+  
   if (canMakeAddon(tournament, clock)) {
-    return 'Addons permitidos (primer nivel de pausa)';
+    if (currentLevelData?.is_pause && currentLevelData?.addons_allowed) {
+      return `Addons permitidos (nivel ${clock.current_level} - pausa con addons)`;
+    } else {
+      return 'Addons permitidos (nivel de pausa)';
+    }
   } else {
     if (!clock.is_paused) {
       return 'Addons solo disponibles durante pausas';
-    } else if (clock.current_level !== 1) {
-      return `Addons solo disponibles en el primer nivel (actual: ${clock.current_level})`;
+    } else if (currentLevelData?.is_pause && !currentLevelData?.addons_allowed) {
+      return `Pausa sin addons (nivel ${clock.current_level})`;
+    } else if (!currentLevelData?.is_pause) {
+      return `Nivel ${clock.current_level} no es pausa`;
     } else {
-      return 'Addons no disponibles';
+      return 'Addons no disponibles en este momento';
     }
   }
 };

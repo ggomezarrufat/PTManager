@@ -286,6 +286,19 @@ async function getOrCreateTournamentClock(tournamentId) {
       .single();
 
     if (insertError) {
+      // Si el error es de conflicto (probablemente ya existe un reloj), intentar obtenerlo
+      if (insertError.code === '23505' || insertError.message?.includes('duplicate')) {
+        console.log('🔄 Reloj ya existe, obteniendo reloj existente...');
+        const { data: existingClock, error: fetchError2 } = await supabase
+          .from('tournament_clocks')
+          .select('*')
+          .eq('tournament_id', tournamentId)
+          .single();
+        
+        if (existingClock && !fetchError2) {
+          return existingClock;
+        }
+      }
       throw insertError;
     }
 
@@ -847,7 +860,9 @@ router.post('/clock/join',
       }
 
       // Obtener o crear el reloj del torneo
+      console.log(`🔍 Obteniendo/creando reloj para torneo: ${tournamentId}`);
       const clockData = await getOrCreateTournamentClock(tournamentId);
+      console.log(`✅ Reloj obtenido/creado exitosamente para torneo: ${tournamentId}`);
 
       const clockState = {
         tournament_id: clockData.tournament_id,
@@ -872,6 +887,23 @@ router.post('/clock/join',
 
     } catch (error) {
       console.error('Error en join-tournament:', error);
+      
+      // Manejar errores específicos
+      if (error.message?.includes('duplicate') || error.code === '23505') {
+        return res.status(409).json({
+          error: 'Conflict',
+          message: 'Ya existe un reloj para este torneo'
+        });
+      }
+      
+      // Error genérico de base de datos
+      if (error.message?.includes('database') || error.message?.includes('relation')) {
+        return res.status(500).json({
+          error: 'Database Error',
+          message: 'Error de base de datos al acceder al torneo'
+        });
+      }
+      
       next(error);
     }
   }

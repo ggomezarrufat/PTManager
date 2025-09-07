@@ -340,6 +340,12 @@ const userService = {
     }>(`/api/users?${params}`);
   },
 
+  async getAvailableUsersForTournament() {
+    return await apiRequest<{
+      users: any[];
+    }>('/api/users/available-for-tournament');
+  },
+
   async createUser(userData: {
     email: string;
     password: string;
@@ -567,6 +573,20 @@ const playerService = {
     }>(`/api/players/${playerId}/results`, {
       method: 'PUT',
       body: JSON.stringify(data),
+    });
+  },
+
+  async updatePlayerPositionAndPoints(playerId: string, position: number, points: number, adminId: string) {
+    return await apiRequest<{
+      message: string;
+      player: any;
+    }>(`/api/players/${playerId}/position-points`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        final_position: position,
+        points_earned: points,
+        updated_by: adminId
+      }),
     });
   },
 };

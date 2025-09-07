@@ -18,7 +18,8 @@ import {
   FormControl,
   InputLabel,
   Select,
-  MenuItem
+  MenuItem,
+  Checkbox
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -113,12 +114,18 @@ const CreateTournament: React.FC = () => {
     }
   };
 
-  const handleBlindLevelChange = (index: number, field: keyof BlindLevel, value: number) => {
-    // Validar que el valor sea un número válido
-    if (isNaN(value) || value < 0) return;
+  const handleBlindLevelChange = (index: number, field: keyof BlindLevel, value: number | boolean) => {
+    // Para campos numéricos, validar que el valor sea válido
+    if (typeof value === 'number' && (isNaN(value) || value < 0)) return;
     
     const newStructure = [...blindStructure];
     newStructure[index] = { ...newStructure[index], [field]: value };
+    
+    // Si se desmarca "es pausa", también desmarcar "addons permitidos"
+    if (field === 'is_pause' && !value) {
+      newStructure[index] = { ...newStructure[index], addons_allowed: false };
+    }
+    
     setBlindStructure(newStructure);
   };
 
@@ -676,6 +683,8 @@ const CreateTournament: React.FC = () => {
                         <TableCell>Big Blind</TableCell>
                         <TableCell>Duración (min)</TableCell>
                         <TableCell>Antes</TableCell>
+                        <TableCell align="center">Pausa</TableCell>
+                        <TableCell align="center">Addons en Pausa</TableCell>
                         <TableCell align="center">Acciones</TableCell>
                       </TableRow>
                     </TableHead>
@@ -730,6 +739,25 @@ const CreateTournament: React.FC = () => {
                               size="small"
                               inputProps={{ min: 0 }}
                               placeholder="Opcional"
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <Checkbox
+                              checked={level.is_pause || false}
+                              onChange={(e) => {
+                                handleBlindLevelChange(index, 'is_pause', e.target.checked);
+                              }}
+                              color="warning"
+                            />
+                          </TableCell>
+                          <TableCell align="center">
+                            <Checkbox
+                              checked={level.addons_allowed || false}
+                              onChange={(e) => {
+                                handleBlindLevelChange(index, 'addons_allowed', e.target.checked);
+                              }}
+                              disabled={!level.is_pause}
+                              color="info"
                             />
                           </TableCell>
                           <TableCell align="center">

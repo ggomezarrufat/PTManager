@@ -47,10 +47,28 @@ const PlayerActionButtons: React.FC<PlayerActionButtonsProps> = ({
   const [chipsAmount, setChipsAmount] = useState(player.current_chips.toString());
 
   // Verificar si se pueden hacer rebuys y addons
+  console.log('🎯 PlayerActionButtons: Datos para rebuy/addon:', {
+    player_id: player.id,
+    player_user_id: player.user_id,
+    player_user_name: player.user?.name,
+    tournament_id: tournament.id,
+    tournament_name: tournament.name,
+    last_level_rebuy: tournament.last_level_rebuy,
+    clock_level: clock?.current_level,
+    clock_paused: clock?.is_paused
+  });
+  
   const rebuyAllowed = canMakeRebuy(tournament, clock);
   const addonAllowed = canMakeAddon(tournament, clock);
   const rebuyStatusMessage = getRebuyStatusMessage(tournament, clock);
   const addonStatusMessage = getAddonStatusMessage(tournament, clock);
+  
+  console.log('📊 PlayerActionButtons: Resultado de verificaciones:', {
+    rebuyAllowed,
+    addonAllowed,
+    rebuyStatusMessage,
+    addonStatusMessage
+  });
 
 
   // Calcular valores automáticamente cuando se abre el modal

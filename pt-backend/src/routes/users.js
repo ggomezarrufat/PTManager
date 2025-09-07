@@ -59,6 +59,33 @@ const router = express.Router();
  *       403:
  *         description: Sin permisos de administrador
  */
+// Endpoint para obtener usuarios disponibles para torneos (no requiere admin)
+router.get('/available-for-tournament', authenticateToken, async (req, res, next) => {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Obtener todos los usuarios de la tabla profiles (sin filtros de confirmación de email)
+    const { data: users, error } = await supabase
+      .from('profiles')
+      .select('id, name, nickname, email, is_admin, created_at')
+      .order('name', { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    console.log(`📋 Usuarios disponibles para torneo: ${users?.length || 0} usuarios obtenidos`);
+
+    res.json({
+      users: users || []
+    });
+
+  } catch (error) {
+    console.error('❌ Error obteniendo usuarios para torneo:', error);
+    next(error);
+  }
+});
+
 router.get('/', authenticateToken, requireAdmin, async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;

@@ -388,7 +388,7 @@ const Dashboard: React.FC = () => {
             ) : leaderboard.length === 0 ? (
               <Alert severity="info">No hay datos para la tabla de posiciones aún. Los puntos se mostrarán después de jugar torneos.</Alert>
             ) : (
-              <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400 }}>
+              <TableContainer component={Paper} variant="outlined">
                 <Table stickyHeader>
                   <TableHead>
                     <TableRow>

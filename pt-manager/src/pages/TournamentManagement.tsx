@@ -22,7 +22,12 @@ import {
   Fab,
   Divider,
   Stack,
-  Avatar
+  Avatar,
+  FormControl,
+  InputLabel,
+  Select,
+  ToggleButton,
+  ToggleButtonGroup
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -36,7 +41,10 @@ import {
   Person as PersonIcon,
   Casino as CasinoIcon,
   Timer as TimerIcon,
-  EmojiEvents as TrophyIcon
+  EmojiEvents as TrophyIcon,
+  Edit as EditIcon,
+  SortByAlpha as SortByNameIcon,
+  EmojiEvents as SortByPositionIcon
 } from '@mui/icons-material';
 import { useTournamentStore } from '../store/tournamentStore';
 import { useAuthStore } from '../store/authStore';
@@ -67,11 +75,18 @@ const TournamentManagement: React.FC = () => {
   const [rebuyDialogOpen, setRebuyDialogOpen] = useState(false);
   const [addonDialogOpen, setAddonDialogOpen] = useState(false);
   const [eliminationDialogOpen, setEliminationDialogOpen] = useState(false);
+  const [editPlayerDialogOpen, setEditPlayerDialogOpen] = useState(false);
   const [selectedPlayerForRebuy, setSelectedPlayerForRebuy] = useState('');
   const [selectedPlayerForAddon, setSelectedPlayerForAddon] = useState('');
   const [selectedPlayerForElimination, setSelectedPlayerForElimination] = useState('');
+  const [selectedPlayerForEdit, setSelectedPlayerForEdit] = useState('');
   const [eliminationPosition, setEliminationPosition] = useState(1);
   const [eliminationPoints, setEliminationPoints] = useState(1);
+  const [editPosition, setEditPosition] = useState(0);
+  const [editPoints, setEditPoints] = useState(0);
+  
+  // Estado para ordenamiento de jugadores
+  const [sortBy, setSortBy] = useState<'name' | 'position'>('name');
 
   // Cargar torneo al montar
   useEffect(() => {
@@ -249,6 +264,48 @@ const TournamentManagement: React.FC = () => {
     }
   };
 
+  const handleEditPlayer = async () => {
+    if (!selectedPlayerForEdit) return;
+
+    try {
+      console.log('🔄 Intentando editar jugador desde TournamentManagement:', {
+        selectedPlayerForEdit,
+        editPosition,
+        editPoints,
+        userId: user?.id,
+        userName: user?.name,
+        isAuthenticated: !!user
+      });
+
+      if (!user?.id) {
+        throw new Error('Usuario no autenticado - no se puede editar el jugador');
+      }
+
+      // Llamar al servicio para actualizar posición y puntos
+      const result = await playerService.updatePlayerPositionAndPoints(
+        selectedPlayerForEdit,
+        editPosition,
+        editPoints,
+        user.id
+      );
+
+      console.log('✅ Jugador editado exitosamente:', {
+        final_position: editPosition,
+        final_points: editPoints
+      });
+
+      setEditPlayerDialogOpen(false);
+      setSelectedPlayerForEdit('');
+
+      // Recargar torneo para actualizar datos
+      if (currentTournament) {
+        loadTournament(currentTournament.id);
+      }
+    } catch (error) {
+      console.error('Error editando jugador:', error);
+    }
+  };
+
   // Filtros de jugadores
   const activePlayersForActions = players.filter(p => p.is_active && !p.is_eliminated);
   const eliminatablePlayersForActions = players.filter(p => p.is_active && !p.is_eliminated);
@@ -257,6 +314,28 @@ const TournamentManagement: React.FC = () => {
   const canStart = currentTournament?.status === 'scheduled' && players.length > 0;
   const canPause = currentTournament?.status === 'active';
   const canFinish = isAdmin && (currentTournament?.status !== 'finished');
+
+  // Ordenamiento de jugadores
+  const sortedPlayers = [...players].sort((a, b) => {
+    if (sortBy === 'position') {
+      // Ordenar por posición final (jugadores eliminados primero, luego activos)
+      if (a.is_eliminated && !b.is_eliminated) return -1;
+      if (!a.is_eliminated && b.is_eliminated) return 1;
+      
+      // Si ambos están eliminados, ordenar por posición final
+      if (a.is_eliminated && b.is_eliminated) {
+        const posA = a.final_position || 999;
+        const posB = b.final_position || 999;
+        return posA - posB;
+      }
+      
+      // Si ambos están activos, ordenar por nombre
+      return getUserDisplayName(a.user || null).localeCompare(getUserDisplayName(b.user || null));
+    } else {
+      // Ordenar por nombre
+      return getUserDisplayName(a.user || null).localeCompare(getUserDisplayName(b.user || null));
+    }
+  });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-AR', {
@@ -538,9 +617,58 @@ const TournamentManagement: React.FC = () => {
       {/* Listado de jugadores con cards */}
       <Card sx={{ mb: 4 }}>
         <CardContent>
-          <Typography variant="h6" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
-            Jugadores inscriptos ({players.length})
-          </Typography>
+          <Box sx={{ 
+            display: 'flex', 
+            flexDirection: { xs: 'column', sm: 'row' },
+            justifyContent: 'space-between', 
+            alignItems: { xs: 'flex-start', sm: 'center' },
+            mb: 3,
+            gap: 2
+          }}>
+            <Typography variant="h6" sx={{ fontWeight: 600 }}>
+              Jugadores inscriptos ({players.length})
+            </Typography>
+            
+            {/* Selector de ordenamiento */}
+            <ToggleButtonGroup
+              value={sortBy}
+              exclusive
+              onChange={(_, newSortBy) => {
+                if (newSortBy !== null) {
+                  setSortBy(newSortBy);
+                }
+              }}
+              size={isMobile ? "medium" : "small"}
+              sx={{
+                '& .MuiToggleButton-root': {
+                  px: 2,
+                  py: 1,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  '&.Mui-selected': {
+                    backgroundColor: 'primary.main',
+                    color: 'primary.contrastText',
+                    '&:hover': {
+                      backgroundColor: 'primary.dark',
+                    }
+                  }
+                }
+              }}
+            >
+              <ToggleButton value="name" aria-label="ordenar por nombre">
+                <SortByNameIcon sx={{ mr: 1, fontSize: 18 }} />
+                <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                  Nombre
+                </Typography>
+              </ToggleButton>
+              <ToggleButton value="position" aria-label="ordenar por posición">
+                <SortByPositionIcon sx={{ mr: 1, fontSize: 18 }} />
+                <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' } }}>
+                  Posición
+                </Typography>
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
           
           {players.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 4 }}>
@@ -554,7 +682,7 @@ const TournamentManagement: React.FC = () => {
             </Box>
           ) : (
             <Grid container spacing={2}>
-              {players.map((p) => (
+              {sortedPlayers.map((p) => (
                 <Grid size={{xs: 12, sm: 6, md: 4}} key={p.id}>
                   <Card 
                     sx={{ 
@@ -616,6 +744,29 @@ const TournamentManagement: React.FC = () => {
                             size="small" 
                           />
                         </Box>
+
+                        {/* Mostrar posición y puntos para torneos finalizados */}
+                        {currentTournament.status === 'finished' && p.is_eliminated && (
+                          <>
+                            <Box display="flex" justifyContent="space-between">
+                              <Typography variant="body2" color="text.secondary">
+                                Posición Final:
+                              </Typography>
+                              <Typography variant="body2" fontWeight={500} color="primary.main">
+                                #{p.final_position || '-'}
+                              </Typography>
+                            </Box>
+                            
+                            <Box display="flex" justifyContent="space-between">
+                              <Typography variant="body2" color="text.secondary">
+                                Puntos Obtenidos:
+                              </Typography>
+                              <Typography variant="body2" fontWeight={500} color="success.main">
+                                {p.points_earned || 0}
+                              </Typography>
+                            </Box>
+                          </>
+                        )}
                       </Stack>
 
                       {/* Acciones */}
@@ -626,85 +777,114 @@ const TournamentManagement: React.FC = () => {
                         borderTop: '1px solid',
                         borderColor: 'divider'
                       }}>
-                        {/* Recompra */}
-                        <IconButton
-                          size="small"
-                          onClick={() => { setSelectedPlayerForRebuy(p.id); setRebuyDialogOpen(true); }}
-                          disabled={p.is_eliminated || currentTournament.status !== 'active'}
-                          sx={{ 
-                            backgroundColor: 'success.light',
-                            color: 'success.contrastText',
-                            '&:hover': {
-                              backgroundColor: 'success.main'
-                            }
-                          }}
-                        >
-                          <MoneyIcon fontSize="small" />
-                        </IconButton>
+                        {/* Acciones para torneos activos */}
+                        {currentTournament.status === 'active' && (
+                          <>
+                            {/* Recompra */}
+                            <IconButton
+                              size="small"
+                              onClick={() => { setSelectedPlayerForRebuy(p.id); setRebuyDialogOpen(true); }}
+                              disabled={p.is_eliminated || currentTournament.status !== 'active'}
+                              sx={{ 
+                                backgroundColor: 'success.light',
+                                color: 'success.contrastText',
+                                '&:hover': {
+                                  backgroundColor: 'success.main'
+                                }
+                              }}
+                            >
+                              <MoneyIcon fontSize="small" />
+                            </IconButton>
+                            
+                            {/* Addon */}
+                            <IconButton
+                              size="small"
+                              onClick={() => { setSelectedPlayerForAddon(p.id); setAddonDialogOpen(true); }}
+                              disabled={p.is_eliminated || currentTournament.status !== 'active'}
+                              sx={{ 
+                                backgroundColor: 'warning.light',
+                                color: 'warning.contrastText',
+                                '&:hover': {
+                                  backgroundColor: 'warning.main'
+                                }
+                              }}
+                            >
+                              <AddIcon fontSize="small" />
+                            </IconButton>
+                            
+                            {/* Eliminar (eliminación del torneo) */}
+                            <IconButton
+                              size="small"
+                              onClick={() => {
+                                setSelectedPlayerForElimination(p.id);
+                                // Resetear valores a los calculados cuando se abre el diálogo
+                                const eliminatedCount = players.filter(player => player.is_eliminated).length;
+                                const totalPlayers = players.length;
+                                const nextPosition = totalPlayers - eliminatedCount;
+                                const nextPoints = eliminatedCount + 1;
+                                setEliminationPosition(nextPosition);
+                                setEliminationPoints(nextPoints);
+                                setEliminationDialogOpen(true);
+                              }}
+                              disabled={p.is_eliminated || !p.is_active}
+                              sx={{
+                                backgroundColor: 'error.light',
+                                color: 'error.contrastText',
+                                '&:hover': {
+                                  backgroundColor: 'error.main'
+                                }
+                              }}
+                            >
+                              <PersonOffIcon fontSize="small" />
+                            </IconButton>
+                          </>
+                        )}
+
+                        {/* Acciones para torneos finalizados */}
+                        {currentTournament.status === 'finished' && p.is_eliminated && (
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setSelectedPlayerForEdit(p.id);
+                              setEditPosition(p.final_position || 0);
+                              setEditPoints(p.points_earned || 0);
+                              setEditPlayerDialogOpen(true);
+                            }}
+                            sx={{
+                              backgroundColor: 'primary.light',
+                              color: 'primary.contrastText',
+                              '&:hover': {
+                                backgroundColor: 'primary.main'
+                              }
+                            }}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        )}
                         
-                        {/* Addon */}
-                        <IconButton
-                          size="small"
-                          onClick={() => { setSelectedPlayerForAddon(p.id); setAddonDialogOpen(true); }}
-                          disabled={p.is_eliminated || currentTournament.status !== 'active'}
-                          sx={{ 
-                            backgroundColor: 'warning.light',
-                            color: 'warning.contrastText',
-                            '&:hover': {
-                              backgroundColor: 'warning.main'
-                            }
-                          }}
-                        >
-                          <AddIcon fontSize="small" />
-                        </IconButton>
-                        
-                        {/* Eliminar (eliminación del torneo) */}
-                        <IconButton
-                          size="small"
-                          onClick={() => {
-                            setSelectedPlayerForElimination(p.id);
-                            // Resetear valores a los calculados cuando se abre el diálogo
-                            const eliminatedCount = players.filter(player => player.is_eliminated).length;
-                            const totalPlayers = players.length;
-                            const nextPosition = totalPlayers - eliminatedCount;
-                            const nextPoints = eliminatedCount + 1;
-                            setEliminationPosition(nextPosition);
-                            setEliminationPoints(nextPoints);
-                            setEliminationDialogOpen(true);
-                          }}
-                          disabled={p.is_eliminated || !p.is_active}
-                          sx={{
-                            backgroundColor: 'error.light',
-                            color: 'error.contrastText',
-                            '&:hover': {
-                              backgroundColor: 'error.main'
-                            }
-                          }}
-                        >
-                          <PersonOffIcon fontSize="small" />
-                        </IconButton>
-                        
-                        {/* Desregistrar */}
-                        <IconButton
-                          size="small"
-                          onClick={async () => {
-                            try {
-                              await playerService.removePlayer(p.id);
-                              if (currentTournament) loadTournament(currentTournament.id);
-                            } catch (e) {
-                              console.error('Error desregistrando jugador', e);
-                            }
-                          }}
-                          sx={{ 
-                            backgroundColor: 'grey.300',
-                            color: 'grey.700',
-                            '&:hover': {
-                              backgroundColor: 'grey.400'
-                            }
-                          }}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
+                        {/* Desregistrar (solo para torneos no finalizados) */}
+                        {currentTournament.status !== 'finished' && (
+                          <IconButton
+                            size="small"
+                            onClick={async () => {
+                              try {
+                                await playerService.removePlayer(p.id);
+                                if (currentTournament) loadTournament(currentTournament.id);
+                              } catch (e) {
+                                console.error('Error desregistrando jugador', e);
+                              }
+                            }}
+                            sx={{ 
+                              backgroundColor: 'grey.300',
+                              color: 'grey.700',
+                              '&:hover': {
+                                backgroundColor: 'grey.400'
+                              }
+                            }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        )}
                       </Box>
                     </CardContent>
                   </Card>
@@ -994,6 +1174,112 @@ const TournamentManagement: React.FC = () => {
             }}
           >
             Eliminar Jugador
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog para editar jugador (torneos finalizados) */}
+      <Dialog 
+        open={editPlayerDialogOpen} 
+        onClose={() => setEditPlayerDialogOpen(false)} 
+        maxWidth="sm" 
+        fullWidth
+        fullScreen={isMobile}
+      >
+        <DialogTitle sx={{ 
+          pb: 1,
+          background: 'linear-gradient(135deg, #2196f3 0%, #1976d2 100%)',
+          color: 'white'
+        }}>
+          Editar Posición y Puntos
+        </DialogTitle>
+        <DialogContent sx={{ pt: 3 }}>
+          <Stack spacing={3}>
+            <TextField
+              select
+              label="Seleccionar Jugador a Editar"
+              value={selectedPlayerForEdit}
+              onChange={(e) => setSelectedPlayerForEdit(e.target.value)}
+              fullWidth
+              variant="outlined"
+              size={isMobile ? "medium" : "small"}
+            >
+              {players.filter(p => p.is_eliminated).map((player) => (
+                <MenuItem key={player.id} value={player.id}>
+                  {getUserDisplayName(player.user || null)} - Posición: #{player.final_position || '-'} - Puntos: {player.points_earned || 0}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
+              <Typography variant="body2" sx={{ mb: 2, fontWeight: 600 }}>
+                Editar Posición y Puntos del Jugador:
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                • Posición actual: #{editPosition}
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 1 }}>
+                • Puntos actuales: {editPoints}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Modifica estos valores para corregir errores
+              </Typography>
+            </Box>
+
+            <TextField
+              label="Posición Final"
+              type="number"
+              value={editPosition}
+              onChange={(e) => setEditPosition(parseInt(e.target.value) || 0)}
+              fullWidth
+              variant="outlined"
+              size={isMobile ? "medium" : "small"}
+              inputProps={{ min: 1 }}
+              helperText="Posición final del jugador en el torneo"
+            />
+
+            <TextField
+              label="Puntos Obtenidos"
+              type="number"
+              value={editPoints}
+              onChange={(e) => setEditPoints(parseInt(e.target.value) || 0)}
+              fullWidth
+              variant="outlined"
+              size={isMobile ? "medium" : "small"}
+              inputProps={{ min: 0 }}
+              helperText="Puntos obtenidos por el jugador"
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ 
+          p: 3,
+          pt: 1,
+          flexDirection: { xs: 'column', sm: 'row' },
+          gap: 1
+        }}>
+          <Button 
+            onClick={() => setEditPlayerDialogOpen(false)}
+            variant="outlined"
+            fullWidth={isMobile}
+            size={isMobile ? "large" : "medium"}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleEditPlayer}
+            variant="contained"
+            color="primary"
+            disabled={!selectedPlayerForEdit || editPosition < 1}
+            fullWidth={isMobile}
+            size={isMobile ? "large" : "medium"}
+            sx={{
+              background: 'linear-gradient(135deg, #2196f3 0%, #1976d2 100%)',
+              '&:hover': {
+                background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+              }
+            }}
+          >
+            Guardar Cambios
           </Button>
         </DialogActions>
       </Dialog>

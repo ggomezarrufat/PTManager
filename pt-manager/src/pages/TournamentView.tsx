@@ -23,7 +23,8 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  MenuItem
+  MenuItem,
+  Autocomplete
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
@@ -56,6 +57,7 @@ const TournamentView: React.FC = () => {
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const {
     currentTournament,
     players,
@@ -128,10 +130,25 @@ const TournamentView: React.FC = () => {
   const loadAvailableUsers = async () => {
     try {
       setLoadingUsers(true);
-      const response = await userService.getUsers(1, 100);
-      setAvailableUsers(response.users);
+      console.log('🔍 TournamentView: Cargando usuarios disponibles para torneo...');
+      const response = await userService.getAvailableUsersForTournament();
+      console.log('📊 TournamentView: Usuarios obtenidos:', {
+        total: response.users?.length || 0,
+        users: response.users?.map(u => ({ id: u.id, name: u.name, email: u.email }))
+      });
+      setAvailableUsers(response.users || []);
     } catch (err) {
-      console.error('Error cargando usuarios:', err);
+      console.error('❌ TournamentView: Error cargando usuarios:', err);
+      // Si falla, intentar con el endpoint de admin como fallback
+      if (user?.is_admin) {
+        try {
+          console.log('🔄 TournamentView: Intentando con endpoint de admin...');
+          const fallbackResponse = await userService.getUsers(1, 100);
+          setAvailableUsers(fallbackResponse.users || []);
+        } catch (fallbackErr) {
+          console.error('❌ TournamentView: Error en fallback:', fallbackErr);
+        }
+      }
     } finally {
       setLoadingUsers(false);
     }
@@ -141,6 +158,15 @@ const TournamentView: React.FC = () => {
   const availableUsersForTournament = availableUsers.filter(
     user => !players.some(player => player.user_id === user.id)
   );
+
+  // Debug: Log del filtrado
+  console.log('🎯 TournamentView: Filtrado de usuarios:', {
+    totalUsuarios: availableUsers.length,
+    jugadoresEnTorneo: players.length,
+    jugadoresIds: players.map(p => p.user_id),
+    usuariosDisponibles: availableUsersForTournament.length,
+    usuariosDisponiblesIds: availableUsersForTournament.map(u => u.id)
+  });
 
   const handleStartTournament = async () => {
     if (!currentTournament) return;
@@ -154,29 +180,36 @@ const TournamentView: React.FC = () => {
   };
 
   const handleAddPlayer = async () => {
-    if (!selectedUserId || !currentTournament) {
+    if (!selectedUser || !currentTournament) {
       return;
     }
 
     try {
+      console.log(`👤 Agregando jugador: ${selectedUser.name} (${selectedUser.email}) al torneo ${currentTournament.name}`);
+      
       await playerService.addPlayerToTournament(currentTournament.id, {
-        user_id: selectedUserId,
+        user_id: selectedUser.id,
         entry_fee_paid: currentTournament.entry_fee,
         initial_chips: currentTournament.initial_chips
       });
       
+      console.log('✅ Jugador agregado exitosamente');
+      
       setAddPlayerDialogOpen(false);
       setSelectedUserId('');
+      setSelectedUser(null);
       
       // Recargar jugadores para actualizar la lista
       await loadPlayers(currentTournament.id);
     } catch (error) {
-      console.error('Error agregando jugador:', error);
+      console.error('❌ Error agregando jugador:', error);
     }
   };
 
   const handleOpenAddPlayerDialog = () => {
     setAddPlayerDialogOpen(true);
+    setSelectedUser(null);
+    setSelectedUserId('');
     loadAvailableUsers();
   };
 
@@ -651,20 +684,59 @@ const TournamentView: React.FC = () => {
         <DialogTitle>Agregar Jugador al Torneo</DialogTitle>
         <DialogContent>
           <Box display="flex" flexDirection="column" gap={3} pt={1}>
-            <TextField
-              select
-              label="Seleccionar Usuario"
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              fullWidth
+            <Autocomplete
+              options={availableUsersForTournament}
+              getOptionLabel={(option) => `${getUserDisplayName(option)} - ${option.email}`}
+              value={selectedUser}
+              onChange={(event, newValue) => {
+                setSelectedUser(newValue);
+                setSelectedUserId(newValue?.id || '');
+              }}
+              loading={loadingUsers}
               disabled={loadingUsers}
-            >
-              {availableUsersForTournament.map((user) => (
-                <MenuItem key={user.id} value={user.id}>
-                  {getUserDisplayName(user)} - {user.email}
-                </MenuItem>
-              ))}
-            </TextField>
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Buscar y Seleccionar Usuario"
+                  placeholder="Escribe para buscar..."
+                  helperText={`${availableUsersForTournament.length} usuarios disponibles`}
+                  InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {loadingUsers ? <CircularProgress color="inherit" size={20} /> : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                />
+              )}
+              renderOption={(props, option) => (
+                <Box component="li" {...props} key={option.id}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                      {getUserDisplayName(option)}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {option.email}
+                      {option.is_admin && (
+                        <Chip 
+                          label="Admin" 
+                          size="small" 
+                          color="primary" 
+                          sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} 
+                        />
+                      )}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+              noOptionsText="No hay usuarios disponibles"
+              clearOnBlur
+              selectOnFocus
+              fullWidth
+            />
 
             {/* Entry fee fijo del torneo, no editable */}
             <TextField
@@ -694,7 +766,7 @@ const TournamentView: React.FC = () => {
           <Button 
             onClick={handleAddPlayer}
             variant="contained"
-            disabled={!selectedUserId}
+            disabled={!selectedUser}
           >
             Agregar
           </Button>

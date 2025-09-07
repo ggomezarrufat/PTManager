@@ -23,7 +23,11 @@ import {
   CircularProgress,
   Chip,
   IconButton,
-  Tooltip
+  Tooltip,
+  Autocomplete,
+  FormControlLabel,
+  Switch,
+  Stack
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -59,10 +63,12 @@ const PlayerManagement: React.FC = () => {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [addPlayerDialogOpen, setAddPlayerDialogOpen] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState('');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [eliminationDialogOpen, setEliminationDialogOpen] = useState(false);
   const [selectedPlayerForElimination, setSelectedPlayerForElimination] = useState<TournamentPlayer | null>(null);
   const [eliminationPosition, setEliminationPosition] = useState(1);
   const [eliminationPoints, setEliminationPoints] = useState(1);
+  const [showOnlyActive, setShowOnlyActive] = useState(false);
 
   // Cargar torneo al montar el componente
   useEffect(() => {
@@ -77,10 +83,19 @@ const PlayerManagement: React.FC = () => {
   const loadAvailableUsers = async () => {
     try {
       setLoadingUsers(true);
-      const response = await userService.getUsers(1, 100);
-      setAvailableUsers(response.users);
+      const response = await userService.getAvailableUsersForTournament();
+      setAvailableUsers(response.users || []);
     } catch (err) {
       console.error('Error cargando usuarios:', err);
+      // Si falla, intentar con el endpoint de admin como fallback
+      if (user?.is_admin) {
+        try {
+          const fallbackResponse = await userService.getUsers(1, 100);
+          setAvailableUsers(fallbackResponse.users || []);
+        } catch (fallbackErr) {
+          console.error('Error en fallback:', fallbackErr);
+        }
+      }
     } finally {
       setLoadingUsers(false);
     }
@@ -105,20 +120,25 @@ const PlayerManagement: React.FC = () => {
   }, [players]);
 
   const handleAddPlayer = async () => {
-    if (!selectedUserId || !currentTournament) {
+    if (!selectedUser || !currentTournament) {
       return;
     }
 
     try {
+      console.log(`👤 Agregando jugador: ${selectedUser.name} (${selectedUser.email}) al torneo ${currentTournament.name}`);
+      
       await addPlayer(currentTournament.id, {
-        user_id: selectedUserId,
+        user_id: selectedUser.id,
         entry_fee_paid: currentTournament.entry_fee
       });
       
+      console.log('✅ Jugador agregado exitosamente');
+      
       setAddPlayerDialogOpen(false);
       setSelectedUserId('');
+      setSelectedUser(null);
     } catch (error) {
-      console.error('Error agregando jugador:', error);
+      console.error('❌ Error agregando jugador:', error);
     }
   };
 
@@ -160,6 +180,9 @@ const PlayerManagement: React.FC = () => {
 
   const activePlayers = players.filter(p => p.is_active && !p.is_eliminated);
   const eliminatedPlayers = players.filter(p => p.is_eliminated);
+  
+  // Filtrar jugadores según el switch
+  const filteredPlayers = showOnlyActive ? activePlayers : players;
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-AR', {
@@ -280,6 +303,35 @@ const PlayerManagement: React.FC = () => {
         </Button>
       </Box>
 
+      {/* Filtro de jugadores */}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h6" component="h2">
+          Lista de Jugadores ({filteredPlayers.length})
+        </Typography>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={showOnlyActive}
+              onChange={(e) => setShowOnlyActive(e.target.checked)}
+              color="primary"
+            />
+          }
+          label={
+            <Stack direction="row" alignItems="center" spacing={1}>
+              <Typography variant="body2">
+                {showOnlyActive ? 'Solo activos' : 'Todos los jugadores'}
+              </Typography>
+              <Chip 
+                label={showOnlyActive ? `${activePlayers.length} activos` : `${players.length} total`}
+                size="small"
+                color={showOnlyActive ? 'success' : 'default'}
+                variant="outlined"
+              />
+            </Stack>
+          }
+        />
+      </Box>
+
       {/* Lista de jugadores */}
       <TableContainer component={Paper}>
         <Table>
@@ -294,7 +346,7 @@ const PlayerManagement: React.FC = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {players.map((player) => (
+            {filteredPlayers.map((player) => (
               <TableRow key={player.id}>
                 <TableCell>
                   <Box>
@@ -342,20 +394,59 @@ const PlayerManagement: React.FC = () => {
         <DialogTitle>Agregar Jugador al Torneo</DialogTitle>
         <DialogContent>
           <Box display="flex" flexDirection="column" gap={3} pt={1}>
-            <TextField
-              select
-              label="Seleccionar Usuario"
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              fullWidth
+            <Autocomplete
+              options={availableUsersForTournament}
+              getOptionLabel={(option) => `${getUserDisplayName(option)} - ${option.email}`}
+              value={selectedUser}
+              onChange={(event, newValue) => {
+                setSelectedUser(newValue);
+                setSelectedUserId(newValue?.id || '');
+              }}
+              loading={loadingUsers}
               disabled={loadingUsers}
-            >
-              {availableUsersForTournament.map((user) => (
-                <MenuItem key={user.id} value={user.id}>
-                  {getUserDisplayName(user)} - {user.email}
-                </MenuItem>
-              ))}
-            </TextField>
+              isOptionEqualToValue={(option, value) => option.id === value.id}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Buscar y Seleccionar Usuario"
+                  placeholder="Escribe para buscar..."
+                  helperText={`${availableUsersForTournament.length} usuarios disponibles`}
+                  InputProps={{
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {loadingUsers ? <CircularProgress color="inherit" size={20} /> : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  }}
+                />
+              )}
+              renderOption={(props, option) => (
+                <Box component="li" {...props} key={option.id}>
+                  <Box sx={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                    <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                      {getUserDisplayName(option)}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {option.email}
+                      {option.is_admin && (
+                        <Chip 
+                          label="Admin" 
+                          size="small" 
+                          color="primary" 
+                          sx={{ ml: 1, height: 18, fontSize: '0.7rem' }} 
+                        />
+                      )}
+                    </Typography>
+                  </Box>
+                </Box>
+              )}
+              noOptionsText="No hay usuarios disponibles"
+              clearOnBlur
+              selectOnFocus
+              fullWidth
+            />
 
             {/* Entry fee fijo del torneo, no editable */}
             <TextField
@@ -375,7 +466,7 @@ const PlayerManagement: React.FC = () => {
             <Button 
               onClick={handleAddPlayer}
               variant="contained"
-              disabled={!selectedUserId}
+              disabled={!selectedUser}
             >
             Agregar
           </Button>

@@ -18,6 +18,8 @@ export interface BlindLevel {
   big_blind: number;
   duration_minutes: number;
   antes?: number;
+  is_pause?: boolean; // Indica si este nivel es una pausa
+  addons_allowed?: boolean; // Si se permiten addons durante esta pausa
 }
 
 export interface PointSystem {

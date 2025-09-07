@@ -20,14 +20,18 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Avatar
+  Avatar,
+  IconButton,
+  Stack
 } from '@mui/material';
 import {
   Add,
   Casino,
   PersonAdd,
   PersonRemove,
-  EmojiEvents
+  EmojiEvents,
+  History as HistoryIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import { useTournamentStore } from '../store/tournamentStore';
 import { useAuthStore } from '../store/authStore';
@@ -70,6 +74,12 @@ const Dashboard: React.FC = () => {
   // Estado para el modal de jugadores
   const [playersModalOpen, setPlayersModalOpen] = useState(false);
   const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
+  
+  // Estado para el historial de torneos del jugador
+  const [playerHistoryOpen, setPlayerHistoryOpen] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
+  const [playerHistory, setPlayerHistory] = useState<any[]>([]);
+  const [playerHistoryLoading, setPlayerHistoryLoading] = useState(false);
 
   useEffect(() => {
     console.log('🔍 Dashboard: useEffect ejecutándose...');
@@ -113,6 +123,37 @@ const Dashboard: React.FC = () => {
       console.log('🏁 Dashboard: Leaderboard loading completado');
     }
   };
+
+  const loadPlayerHistory = useCallback(async (player: any) => {
+    try {
+      setPlayerHistoryLoading(true);
+      setSelectedPlayer(player);
+      setPlayerHistoryOpen(true);
+      
+      console.log('🔍 Dashboard: Cargando historial para jugador:', player.name);
+      
+      const response = await reportsService.getPlayerTournaments(player.user_id);
+      const tournaments = response.tournaments || [];
+      
+      // Ordenar por fecha del torneo en forma ascendente
+      const sortedTournaments = tournaments.sort((a, b) => 
+        new Date(a.tournament_date).getTime() - new Date(b.tournament_date).getTime()
+      );
+      
+      setPlayerHistory(sortedTournaments);
+      
+      console.log('✅ Dashboard: Historial cargado:', {
+        player: player.name,
+        tournamentsCount: sortedTournaments.length,
+        tournaments: sortedTournaments
+      });
+    } catch (err) {
+      console.error('❌ Dashboard: Error cargando historial del jugador:', err);
+      setPlayerHistory([]);
+    } finally {
+      setPlayerHistoryLoading(false);
+    }
+  }, []);
 
   const loadTournamentPlayers = useCallback(async (tournamentId: string) => {
     try {
@@ -473,9 +514,25 @@ const Dashboard: React.FC = () => {
                           </Typography>
                         </TableCell>
                         <TableCell align="right">
-                          <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
-                            {entry.total_points.toLocaleString()}
-                          </Typography>
+                          <Box display="flex" alignItems="center" justifyContent="flex-end" gap={1}>
+                            <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 'bold' }}>
+                              {entry.total_points.toLocaleString()}
+                            </Typography>
+                            <IconButton
+                              size="small"
+                              onClick={() => loadPlayerHistory(entry)}
+                              sx={{
+                                color: 'primary.main',
+                                '&:hover': {
+                                  backgroundColor: 'primary.light',
+                                  color: 'primary.contrastText'
+                                }
+                              }}
+                              title="Ver historial de torneos"
+                            >
+                              <HistoryIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -577,6 +634,130 @@ const Dashboard: React.FC = () => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleClosePlayersModal} color="primary">
+            Cerrar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog para historial de torneos del jugador */}
+      <Dialog
+        open={playerHistoryOpen}
+        onClose={() => setPlayerHistoryOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box display="flex" alignItems="center" justifyContent="space-between">
+            <Box display="flex" alignItems="center" gap={2}>
+              <Avatar
+                src={selectedPlayer?.avatar_url}
+                sx={{
+                  width: 40,
+                  height: 40,
+                  bgcolor: selectedPlayer?.avatar_url ? 'transparent' : 'primary.main'
+                }}
+              >
+                {(!selectedPlayer?.avatar_url || selectedPlayer?.avatar_url === '') && (
+                  <Typography variant="h6" sx={{ fontSize: 16, fontWeight: 'bold' }}>
+                    {selectedPlayer?.name ? selectedPlayer.name.charAt(0).toUpperCase() : '?'}
+                  </Typography>
+                )}
+              </Avatar>
+              <Box>
+                <Typography variant="h6" component="div">
+                  Historial de Torneos
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {selectedPlayer?.name || 'Jugador'}
+                </Typography>
+              </Box>
+            </Box>
+            <IconButton
+              onClick={() => setPlayerHistoryOpen(false)}
+              size="small"
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {playerHistoryLoading ? (
+            <Box display="flex" justifyContent="center" p={3}>
+              <CircularProgress />
+            </Box>
+          ) : playerHistory.length === 0 ? (
+            <Alert severity="info">
+              Este jugador no ha participado en ningún torneo aún.
+            </Alert>
+          ) : (
+            <TableContainer component={Paper} variant="outlined">
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
+                      Fecha
+                    </TableCell>
+                    <TableCell sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
+                      Torneo
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
+                      Posición
+                    </TableCell>
+                    <TableCell align="center" sx={{ fontWeight: 'bold', backgroundColor: 'primary.main', color: 'white' }}>
+                      Puntos
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {playerHistory.map((tournament, index) => (
+                    <TableRow 
+                      key={tournament.tournament_id}
+                      sx={{
+                        '&:hover': { backgroundColor: 'action.hover' }
+                      }}
+                    >
+                      <TableCell>
+                        <Typography variant="body2">
+                          {format(new Date(tournament.tournament_date), 'dd/MM/yyyy')}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                          {tournament.tournament_name}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Chip
+                          label={`#${tournament.final_position}`}
+                          size="small"
+                          color={tournament.final_position <= 3 ? 'primary' : 'default'}
+                          sx={{
+                            fontWeight: 'bold',
+                            minWidth: 50
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography 
+                          variant="body2" 
+                          sx={{ 
+                            fontFamily: 'monospace', 
+                            fontWeight: 'bold',
+                            color: 'success.main'
+                          }}
+                        >
+                          {tournament.points_earned.toLocaleString()}
+                        </Typography>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPlayerHistoryOpen(false)} color="primary">
             Cerrar
           </Button>
         </DialogActions>

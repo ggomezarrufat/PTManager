@@ -230,11 +230,19 @@ const UserAdmin: React.FC = () => {
       await loadUsers();
     } catch (err: unknown) {
       console.error('❌ UserAdmin: Error guardando usuario:', err);
-      const errorMessage = err instanceof ApiError 
-        ? err.message 
-        : err instanceof Error 
-        ? err.message 
-        : 'Error al guardar usuario';
+      
+      let errorMessage = 'Error al guardar usuario';
+      
+      if (err instanceof ApiError) {
+        if (err.status === 409 && err.message.includes('email')) {
+          errorMessage = '❌ Ya existe un usuario con este email. Por favor, usa un email diferente o edita el usuario existente.';
+        } else {
+          errorMessage = err.message;
+        }
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      
       setUserFormError(errorMessage);
     } finally {
       setUserFormLoading(false);

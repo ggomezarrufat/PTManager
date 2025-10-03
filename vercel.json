@@ -1,0 +1,90 @@
+{
+  "buildCommand": "cd pt-manager && npm run build",
+  "outputDirectory": "pt-manager/build",
+  "installCommand": "npm install",
+  "functions": {
+    "pt-manager/api/auth/login.js": {
+      "maxDuration": 10
+    },
+    "pt-manager/api/auth/refresh.js": {
+      "maxDuration": 10
+    },
+    "pt-manager/api/auth/register.js": {
+      "maxDuration": 10
+    },
+    "pt-manager/api/auth/logout.js": {
+      "maxDuration": 10
+    },
+    "pt-manager/api/auth/me.js": {
+      "maxDuration": 10
+    },
+    "pt-manager/api/clock/state.js": {
+      "maxDuration": 10
+    },
+    "pt-manager/api/clock/join.js": {
+      "maxDuration": 10
+    },
+    "pt-manager/api/clock/pause.js": {
+      "maxDuration": 10
+    },
+    "pt-manager/api/clock/resume.js": {
+      "maxDuration": 10
+    },
+    "pt-manager/api/clock/adjust.js": {
+      "maxDuration": 10
+    },
+    "pt-manager/api/clock/sync.js": {
+      "maxDuration": 10
+    },
+    "pt-manager/api/clock/sync-manual.js": {
+      "maxDuration": 10
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "/pt-manager/api/$1"
+    },
+    {
+      "source": "/((?!api|static|favicon.ico|manifest.json|logo192.png|logo512.png|robots.txt|service-worker.js).*)",
+      "destination": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET, POST, PUT, DELETE, OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type, Authorization"
+        }
+      ]
+    },
+    {
+      "source": "/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ]
+}

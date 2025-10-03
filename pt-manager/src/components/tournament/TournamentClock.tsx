@@ -734,12 +734,42 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
 
   if (!clockState) {
     return (
-      <Card sx={{ maxWidth: 400, mx: 'auto', mt: 2 }}>
+      <Card sx={{ maxWidth: 600, mx: 'auto', mt: 2 }}>
         <CardContent>
           <Alert severity="info" sx={{ mb: 2 }}>
-            No hay reloj activo para este torneo
+            <Typography variant="body1" sx={{ fontWeight: 600, mb: 1 }}>
+              No hay reloj activo para este torneo
+            </Typography>
+            <Typography variant="body2" sx={{ mb: 1 }}>
+              Estado de conexión: {isConnected ? '🟢 Conectado' : '🔴 Desconectado'}
+            </Typography>
+            {error && (
+              <Typography variant="body2" color="error" sx={{ mb: 1 }}>
+                Error: {error}
+              </Typography>
+            )}
+            {tournamentInfo && (
+              <Typography variant="body2" sx={{ mt: 2 }}>
+                Estado del torneo: <strong>{tournamentInfo.status}</strong>
+              </Typography>
+            )}
+            {tournamentInfo?.status !== 'active' && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                💡 El reloj solo está disponible cuando el torneo está en estado "Activo". 
+                {isAdmin && ' Usa el botón "Iniciar Torneo" para activar el reloj.'}
+              </Typography>
+            )}
           </Alert>
-
+          {isAdmin && reconnect && (
+            <Button 
+              onClick={reconnect} 
+              variant="outlined" 
+              fullWidth
+              sx={{ mt: 2 }}
+            >
+              Reconectar
+            </Button>
+          )}
         </CardContent>
       </Card>
     );

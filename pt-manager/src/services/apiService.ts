@@ -4,23 +4,31 @@
 declare const process: {
   env: {
     NODE_ENV: string;
+    API_BASE_URL?: string;
     REACT_APP_API_URL?: string;
     REACT_APP_API_BASE_URL?: string;
   };
 };
 
 const getApiBaseUrl = () => {
-  // En producción, usar la misma URL del frontend
+  // En producción, usar la variable de entorno API_BASE_URL
   if (process.env.NODE_ENV === 'production') {
+    const apiUrl = process.env.API_BASE_URL || process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL;
+    if (apiUrl) {
+      console.log('🔧 Production API URL from env:', apiUrl);
+      return apiUrl;
+    }
+    console.log('⚠️ No API URL configured, falling back to window.location.origin');
     return window.location.origin;
   }
 
-  // Forzar el uso del puerto 3001 para el backend
+  // En desarrollo, usar localhost:3001
   const backendUrl = 'http://localhost:3001';
 
   // Log de depuración para verificar configuración
-  console.log('🔧 Backend URL Configuration:', {
+  console.log('🔧 Development Backend URL Configuration:', {
     forcedUrl: backendUrl,
+    apiBaseUrl: process.env.API_BASE_URL,
     reactAppApiUrl: process.env.REACT_APP_API_URL,
     reactAppApiBaseUrl: process.env.REACT_APP_API_BASE_URL,
     nodeEnv: process.env.NODE_ENV

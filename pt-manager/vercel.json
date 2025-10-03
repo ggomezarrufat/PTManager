@@ -7,6 +7,18 @@
   },
   "rewrites": [
     {
+      "source": "/api/(.*)",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/index.js"
+    },
+    {
+      "source": "/api-docs",
+      "destination": "/api/index.js"
+    },
+    {
       "source": "/((?!api|api-docs|health|static|favicon.ico|manifest.json|logo192.png|logo512.png|robots.txt|service-worker.js).*)",
       "destination": "/index.html"
     }

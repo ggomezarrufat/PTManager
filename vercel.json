@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "pt-manager/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "build"
+      }
+    },
+    {
+      "src": "pt-backend/src/index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "pt-backend/src/index.js"
+    },
+    {
+      "src": "/health",
+      "dest": "pt-backend/src/index.js"
+    },
+    {
+      "src": "/api-docs",
+      "dest": "pt-backend/src/index.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "pt-manager/build/index.html"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "pt-backend/src/index.js": {
+      "maxDuration": 30
+    }
+  },
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./pt-manager-mobile/"
+}

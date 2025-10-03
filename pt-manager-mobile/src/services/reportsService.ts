@@ -56,3 +56,4 @@ class ReportsService {
 
 export const reportsService = new ReportsService();
 export default reportsService;
+

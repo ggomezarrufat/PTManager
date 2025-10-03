@@ -66,3 +66,4 @@ El modo mock ha sido completamente eliminado y la aplicación ahora usa **Supaba
 - ✅ **Datos reales** disponibles
 
 ¡La aplicación PT Manager Mobile está ahora usando Supabase real y funcionando correctamente con las credenciales del usuario!
+

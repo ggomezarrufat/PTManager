@@ -116,3 +116,4 @@ node scripts/test-mobile-auth.js
 - ✅ **Interfaz responsive** y funcional
 
 ¡La aplicación PT Manager Mobile está ahora completamente funcional con autenticación mock! Puedes probar todas las funcionalidades sin necesidad de conexión a internet.
+

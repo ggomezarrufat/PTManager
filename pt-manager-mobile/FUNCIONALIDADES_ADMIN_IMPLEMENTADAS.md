@@ -94,3 +94,4 @@
 - ✅ **Funcionalidades completas** para gestión de torneos
 
 ¡Las funcionalidades de administrador están completamente implementadas y listas para usar!
+

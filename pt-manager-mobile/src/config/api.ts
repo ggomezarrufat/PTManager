@@ -1,7 +1,31 @@
 // Configuración de la API para móvil
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:3001' 
-  : 'https://pt-manager.vercel.app';
+const getApiBaseUrl = () => {
+  // En desarrollo, usar localhost
+  if (__DEV__) {
+    return 'http://localhost:3001';
+  }
+
+  // En producción, usar variables de entorno
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL;
+  if (apiUrl) {
+    console.log('🔧 Mobile API URL from env:', apiUrl);
+    return apiUrl;
+  }
+
+  // Fallback a la URL hardcodeada
+  console.log('⚠️ No EXPO_PUBLIC_API_URL configured, using fallback');
+  return 'https://pt-manager.vercel.app';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
+// Debug: Log de configuración de API
+console.log('🔍 Mobile API Configuration:', {
+  EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
+  EXPO_PUBLIC_API_BASE_URL: process.env.EXPO_PUBLIC_API_BASE_URL,
+  API_BASE_URL: API_BASE_URL,
+  isDev: __DEV__
+});
 
 // Configuración de URLs de la API
 export const API_URLS = {
@@ -74,6 +98,7 @@ export const API_URLS = {
   // Reportes
   REPORTS: {
     FINANCIAL: `${API_BASE_URL}/api/reports/financial`,
+    LEADERBOARD: `${API_BASE_URL}/api/reports/leaderboard`,
     TOURNAMENT: (id: string) => `${API_BASE_URL}/api/reports/tournament/${id}`,
     PLAYER: (id: string) => `${API_BASE_URL}/api/reports/player/${id}`,
   }

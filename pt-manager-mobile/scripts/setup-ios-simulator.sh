@@ -43,3 +43,4 @@ echo "- Comandos útiles:"
 echo "  - npm run ios (abrir en simulador)"
 echo "  - npm start (iniciar servidor)"
 echo "  - r (recargar app en simulador)"
+

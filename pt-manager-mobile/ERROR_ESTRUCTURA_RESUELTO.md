@@ -85,3 +85,4 @@ const tournamentWithStructure = {
 El error de "Cannot read property 'length' of undefined" ha sido **completamente resuelto**. La aplicación ahora maneja de forma segura los casos donde los torneos no tienen estructura definida, mostrando "0 niveles" como fallback elegante.
 
 ¡La aplicación PT Manager Mobile está ahora completamente estable y funcional!
+

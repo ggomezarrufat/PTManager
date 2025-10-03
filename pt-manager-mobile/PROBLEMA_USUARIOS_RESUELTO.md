@@ -160,3 +160,4 @@ El problema de carga de usuarios está **completamente resuelto**. El modal de s
 - **Experiencia idéntica** a la versión web
 
 ¡La funcionalidad de agregar jugadores está completamente operativa!
+

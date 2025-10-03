@@ -162,3 +162,4 @@ Las funcionalidades de administrador están **completamente implementadas** y fu
 4. **📱 Experiencia Móvil:** Optimizada para dispositivos táctiles
 
 ¡La aplicación móvil ahora tiene la misma funcionalidad de administración que la versión web!
+

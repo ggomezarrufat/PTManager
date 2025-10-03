@@ -117,3 +117,4 @@ npm install
 5. **Preparar para producción** con EAS Build
 
 ¡Disfruta desarrollando con PT Manager Mobile! 🎉
+

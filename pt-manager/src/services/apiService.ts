@@ -10,29 +10,17 @@ declare const process: {
 };
 
 const getApiBaseUrl = () => {
-  // En producción, usar las variables de entorno REACT_APP_*
-  if (process.env.NODE_ENV === 'production') {
-    const apiUrl = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL;
-    if (apiUrl) {
-      console.log('🔧 Production API URL from env:', apiUrl);
-      return apiUrl;
-    }
-    console.log('⚠️ No REACT_APP_API_URL configured, falling back to window.location.origin');
-    return window.location.origin;
+  // Siempre usar las variables de entorno REACT_APP_*
+  const apiUrl = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL;
+  
+  if (apiUrl) {
+    console.log('🔧 API URL from environment variables:', apiUrl);
+    return apiUrl;
   }
 
-  // En desarrollo, usar localhost:3001
-  const backendUrl = 'http://localhost:3001';
-
-  // Log de depuración para verificar configuración
-  console.log('🔧 Development Backend URL Configuration:', {
-    forcedUrl: backendUrl,
-    reactAppApiUrl: process.env.REACT_APP_API_URL,
-    reactAppApiBaseUrl: process.env.REACT_APP_API_BASE_URL,
-    nodeEnv: process.env.NODE_ENV
-  });
-
-  return backendUrl;
+  // Fallback solo si no hay variables de entorno configuradas
+  console.log('⚠️ No REACT_APP_API_URL or REACT_APP_API_BASE_URL configured, falling back to window.location.origin');
+  return window.location.origin;
 };
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -43,17 +31,11 @@ console.log('🔍 API Service Debug:', {
   REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
   API_BASE_URL: API_BASE_URL,
   NODE_ENV: process.env.NODE_ENV,
-  window_origin: typeof window !== 'undefined' ? window.location.origin : 'N/A',
-  isProduction: process.env.NODE_ENV === 'production'
+  window_origin: typeof window !== 'undefined' ? window.location.origin : 'N/A'
 });
 
-// Log adicional para confirmar configuración forzada
-console.log('🔧 API_BASE_URL forzado a puerto 3001:', API_BASE_URL);
-if (API_BASE_URL === 'http://localhost:3001') {
-  console.log('✅ Configuración correcta: API apunta a puerto 3001');
-} else {
-  console.error('❌ ERROR: API_BASE_URL no está apuntando al puerto correcto:', API_BASE_URL);
-}
+// Log adicional para confirmar configuración
+console.log('🔧 API_BASE_URL configurado:', API_BASE_URL);
 
 // Custom error class for API errors
 export class ApiError extends Error {

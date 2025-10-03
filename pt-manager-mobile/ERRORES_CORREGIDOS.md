@@ -74,3 +74,4 @@
 Los errores de `toLocaleString` y las advertencias de iconos han sido **completamente resueltos**. La aplicación ahora maneja de forma segura los valores undefined y usa iconos válidos de Ionicons.
 
 ¡La aplicación PT Manager Mobile está ahora completamente estable y sin errores!
+

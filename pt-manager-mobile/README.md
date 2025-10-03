@@ -216,3 +216,4 @@ Este proyecto está bajo la Licencia MIT.
 ## 📞 Soporte
 
 Para soporte técnico, contacta al equipo de desarrollo o crea un issue en el repositorio.
+

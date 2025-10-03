@@ -166,3 +166,4 @@ const durationValue = duration_minutes || duration;
 La aplicación móvil ahora envía exactamente los mismos campos que espera el backend de la versión web, garantizando compatibilidad total y eliminando los errores de creación de torneos.
 
 ¡La creación de torneos debería funcionar perfectamente ahora!
+

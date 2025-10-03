@@ -4,21 +4,20 @@
 declare const process: {
   env: {
     NODE_ENV: string;
-    API_BASE_URL?: string;
     REACT_APP_API_URL?: string;
     REACT_APP_API_BASE_URL?: string;
   };
 };
 
 const getApiBaseUrl = () => {
-  // En producción, usar la variable de entorno API_BASE_URL
+  // En producción, usar las variables de entorno REACT_APP_*
   if (process.env.NODE_ENV === 'production') {
-    const apiUrl = process.env.API_BASE_URL || process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL;
+    const apiUrl = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL;
     if (apiUrl) {
       console.log('🔧 Production API URL from env:', apiUrl);
       return apiUrl;
     }
-    console.log('⚠️ No API URL configured, falling back to window.location.origin');
+    console.log('⚠️ No REACT_APP_API_URL configured, falling back to window.location.origin');
     return window.location.origin;
   }
 
@@ -28,7 +27,6 @@ const getApiBaseUrl = () => {
   // Log de depuración para verificar configuración
   console.log('🔧 Development Backend URL Configuration:', {
     forcedUrl: backendUrl,
-    apiBaseUrl: process.env.API_BASE_URL,
     reactAppApiUrl: process.env.REACT_APP_API_URL,
     reactAppApiBaseUrl: process.env.REACT_APP_API_BASE_URL,
     nodeEnv: process.env.NODE_ENV
@@ -42,6 +40,7 @@ export const API_BASE_URL = getApiBaseUrl();
 // Debug: Log detallado de la URL de la API
 console.log('🔍 API Service Debug:', {
   REACT_APP_API_URL: process.env.REACT_APP_API_URL,
+  REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
   API_BASE_URL: API_BASE_URL,
   NODE_ENV: process.env.NODE_ENV,
   window_origin: typeof window !== 'undefined' ? window.location.origin : 'N/A',

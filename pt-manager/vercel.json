@@ -40,7 +40,7 @@
   },
   "rewrites": [
     {
-      "source": "/((?!api|static|favicon.ico|manifest.json|logo192.png|logo512.png|robots.txt|service-worker.js).*)",
+      "source": "/((?!api|api-docs|static|favicon.ico|manifest.json|logo192.png|logo512.png|robots.txt|service-worker.js).*)",
       "destination": "/index.html"
     }
   ],

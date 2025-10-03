@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Poker Tournament Manager - Full Stack Application",
   "scripts": {
-    "build": "cd pt-manager && npm run build",
+    "build": "npm run build:copy-api && cd pt-manager && npm run build",
+    "build:copy-api": "cp -r pt-manager/api ./api",
     "start": "echo 'This is a monorepo. Use npm start in pt-manager/ or pt-backend/'",
     "dev:frontend": "cd pt-manager && npm start",
     "dev:backend": "cd pt-backend && npm run dev"

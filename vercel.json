@@ -3,48 +3,44 @@
   "outputDirectory": "pt-manager/build",
   "installCommand": "npm install",
   "functions": {
-    "pt-manager/api/auth/login.js": {
+    "api/auth/login.js": {
       "maxDuration": 10
     },
-    "pt-manager/api/auth/refresh.js": {
+    "api/auth/refresh.js": {
       "maxDuration": 10
     },
-    "pt-manager/api/auth/register.js": {
+    "api/auth/register.js": {
       "maxDuration": 10
     },
-    "pt-manager/api/auth/logout.js": {
+    "api/auth/logout.js": {
       "maxDuration": 10
     },
-    "pt-manager/api/auth/me.js": {
+    "api/auth/me.js": {
       "maxDuration": 10
     },
-    "pt-manager/api/clock/state.js": {
+    "api/clock/state.js": {
       "maxDuration": 10
     },
-    "pt-manager/api/clock/join.js": {
+    "api/clock/join.js": {
       "maxDuration": 10
     },
-    "pt-manager/api/clock/pause.js": {
+    "api/clock/pause.js": {
       "maxDuration": 10
     },
-    "pt-manager/api/clock/resume.js": {
+    "api/clock/resume.js": {
       "maxDuration": 10
     },
-    "pt-manager/api/clock/adjust.js": {
+    "api/clock/adjust.js": {
       "maxDuration": 10
     },
-    "pt-manager/api/clock/sync.js": {
+    "api/clock/sync.js": {
       "maxDuration": 10
     },
-    "pt-manager/api/clock/sync-manual.js": {
+    "api/clock/sync-manual.js": {
       "maxDuration": 10
     }
   },
   "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/pt-manager/api/$1"
-    },
     {
       "source": "/((?!api|static|favicon.ico|manifest.json|logo192.png|logo512.png|robots.txt|service-worker.js).*)",
       "destination": "/index.html"

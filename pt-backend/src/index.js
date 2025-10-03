@@ -58,7 +58,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 // Preflight global
-app.options('*', cors(corsOptions));
+app.options('/*', cors(corsOptions));
 
 // Security middleware
 app.use(helmet());
@@ -194,7 +194,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/seasons', seasonRoutes);
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({
     error: 'Not Found',
     message: `Route ${req.originalUrl} not found`,

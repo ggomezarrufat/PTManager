@@ -194,7 +194,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/seasons', seasonRoutes);
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use((req, res) => {
   res.status(404).json({
     error: 'Not Found',
     message: `Route ${req.originalUrl} not found`,

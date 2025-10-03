@@ -1,6 +1,5 @@
 import { supabase } from '../config/supabase';
-
-const API_BASE_URL = 'https://copadesafio.vercel.app';
+import { API_URLS } from '../config/api';
 
 interface TournamentResponse {
   message: string;
@@ -13,6 +12,22 @@ interface ClockResponse {
 }
 
 class TournamentService {
+  private getApiBaseUrl(): string {
+    // En desarrollo, usar localhost
+    if (__DEV__) {
+      return 'http://localhost:3001';
+    }
+
+    // En producción, usar variables de entorno
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL;
+    if (apiUrl) {
+      return apiUrl;
+    }
+
+    // Fallback a la URL hardcodeada
+    return 'https://pt-manager.vercel.app';
+  }
+
   private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const { data: { session } } = await supabase.auth.getSession();
     
@@ -20,7 +35,7 @@ class TournamentService {
       throw new Error('No hay sesión activa');
     }
 
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    const response = await fetch(`${this.getApiBaseUrl()}${endpoint}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',

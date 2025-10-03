@@ -1,4 +1,7 @@
 {
+  "buildCommand": "npm install && npm run build",
+  "outputDirectory": "build",
+  "installCommand": "npm install",
   "functions": {
     "api/auth/login.js": {
       "maxDuration": 10
@@ -20,8 +23,29 @@
     },
     "api/clock/join.js": {
       "maxDuration": 10
+    },
+    "api/clock/pause.js": {
+      "maxDuration": 10
+    },
+    "api/clock/resume.js": {
+      "maxDuration": 10
+    },
+    "api/clock/adjust.js": {
+      "maxDuration": 10
+    },
+    "api/clock/sync.js": {
+      "maxDuration": 10
+    },
+    "api/clock/sync-manual.js": {
+      "maxDuration": 10
     }
   },
+  "rewrites": [
+    {
+      "source": "/((?!api|static|favicon.ico|manifest.json|logo192.png|logo512.png|robots.txt|service-worker.js).*)",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/api/(.*)",
@@ -37,6 +61,24 @@
         {
           "key": "Access-Control-Allow-Headers",
           "value": "Content-Type, Authorization"
+        }
+      ]
+    },
+    {
+      "source": "/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
         }
       ]
     }

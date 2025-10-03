@@ -1,4 +1,5 @@
 {
+  "outputDirectory": "build",
   "functions": {
     "api/auth/login.js": {
       "maxDuration": 10

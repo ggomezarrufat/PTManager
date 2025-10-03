@@ -873,6 +873,64 @@ router.put('/players/:playerId/results',
  *       200:
  *         description: Resultados actualizados
  */
+
+/**
+ * @swagger
+ * /api/tournaments/{tournamentId}/results:
+ *   put:
+ *     summary: Actualizar resultados finales de un torneo
+ *     tags: [Jugadores]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tournamentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del torneo
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - results
+ *             properties:
+ *               results:
+ *                 type: array
+ *                 minItems: 1
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - player_id
+ *                   properties:
+ *                     player_id:
+ *                       type: string
+ *                       format: uuid
+ *                       description: ID del jugador
+ *                     final_position:
+ *                       type: integer
+ *                       minimum: 1
+ *                       description: Posición final del jugador
+ *                     points_earned:
+ *                       type: integer
+ *                       minimum: 0
+ *                       description: Puntos ganados por el jugador
+ *     responses:
+ *       200:
+ *         description: Resultados actualizados exitosamente
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       403:
+ *         description: Sin permisos de administrador
+ *       404:
+ *         description: Torneo no encontrado
+ */
 router.put('/tournaments/:tournamentId/results',
   authenticateToken,
   requireAdmin,
@@ -1100,6 +1158,58 @@ router.put('/players/:playerId/chips',
  *     responses:
  *       200:
  *         description: Inscripción confirmada exitosamente
+ */
+
+/**
+ * @swagger
+ * /api/players/{playerId}/position-points:
+ *   put:
+ *     summary: Actualizar posición final y puntos de un jugador
+ *     tags: [Jugadores]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: playerId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del jugador
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - final_position
+ *               - points_earned
+ *               - updated_by
+ *             properties:
+ *               final_position:
+ *                 type: integer
+ *                 minimum: 1
+ *                 description: Posición final del jugador
+ *               points_earned:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: Puntos ganados por el jugador
+ *               updated_by:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del administrador que actualiza
+ *     responses:
+ *       200:
+ *         description: Posición y puntos actualizados exitosamente
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       403:
+ *         description: Sin permisos de administrador
+ *       404:
+ *         description: Jugador no encontrado
  */
 router.put('/players/:playerId/position-points',
   authenticateToken,

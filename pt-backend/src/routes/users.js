@@ -59,6 +59,29 @@ const router = express.Router();
  *       403:
  *         description: Sin permisos de administrador
  */
+/**
+ * @swagger
+ * /api/users/available-for-tournament:
+ *   get:
+ *     summary: Obtener usuarios disponibles para torneos
+ *     tags: [Usuarios]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Lista de usuarios disponibles
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 users:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/User'
+ *       401:
+ *         description: No autenticado
+ */
 // Endpoint para obtener usuarios disponibles para torneos (no requiere admin)
 router.get('/available-for-tournament', authenticateToken, async (req, res, next) => {
   try {

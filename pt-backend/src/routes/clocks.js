@@ -359,6 +359,35 @@ async function getOrCreateTournamentClock(tournamentId) {
  *                 clock:
  *                   $ref: '#/components/schemas/TournamentClock'
  */
+
+/**
+ * @swagger
+ * /api/clock/tournaments/{tournamentId}/clock:
+ *   get:
+ *     summary: Obtener reloj de un torneo específico
+ *     tags: [Reloj]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tournamentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del torneo
+ *     responses:
+ *       200:
+ *         description: Estado del reloj obtenido exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/TournamentClock'
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Reloj no encontrado
+ */
 router.get('/tournaments/:tournamentId/clock',
   authenticateToken,
   [

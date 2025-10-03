@@ -147,6 +147,33 @@ router.get('/', authenticateToken, async (req, res, next) => {
  *       404:
  *         description: Temporada no encontrada
  */
+/**
+ * @swagger
+ * /api/seasons/{id}:
+ *   get:
+ *     summary: Obtener temporada por ID
+ *     tags: [Seasons]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID de la temporada
+ *     responses:
+ *       200:
+ *         description: Información de la temporada
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Season'
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Temporada no encontrada
+ */
 router.get('/:id', authenticateToken, async (req, res, next) => {
   try {
     const { id } = req.params;

@@ -275,6 +275,40 @@ router.post('/players/:playerId/addons',
  *       200:
  *         description: Lista de addons del jugador
  */
+
+/**
+ * @swagger
+ * /api/players/{playerId}/addons:
+ *   get:
+ *     summary: Obtener addons de un jugador específico
+ *     tags: [Addons]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: playerId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del jugador
+ *     responses:
+ *       200:
+ *         description: Lista de addons del jugador obtenida exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 addons:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Addon'
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Jugador no encontrado
+ */
 router.get('/players/:playerId/addons',
   authenticateToken,
   [

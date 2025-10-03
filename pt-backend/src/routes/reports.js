@@ -343,6 +343,52 @@ router.get('/leaderboard', authenticateToken, async (req, res, next) => {
  *                       tournament_date:
  *                         type: string
  */
+
+/**
+ * @swagger
+ * /api/reports/player-tournaments/{userId}:
+ *   get:
+ *     summary: Obtener historial de torneos de un jugador
+ *     tags: [Reports]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del usuario
+ *     responses:
+ *       200:
+ *         description: Historial de torneos obtenido exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 tournaments:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       tournament_id:
+ *                         type: string
+ *                         format: uuid
+ *                       tournament_name:
+ *                         type: string
+ *                       final_position:
+ *                         type: number
+ *                       points_earned:
+ *                         type: number
+ *                       tournament_date:
+ *                         type: string
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Usuario no encontrado
+ */
 router.get('/player-tournaments/:userId', authenticateToken, async (req, res, next) => {
   try {
     const { userId } = req.params;

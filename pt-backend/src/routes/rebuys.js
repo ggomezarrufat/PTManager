@@ -434,6 +434,48 @@ router.post('/players/:playerId/rebuys',
  *       200:
  *         description: Lista de recompras del jugador
  */
+
+/**
+ * @swagger
+ * /api/tournaments/{tournamentId}/rebuys:
+ *   get:
+ *     summary: Obtener todas las recompras de un torneo
+ *     tags: [Recompras]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tournamentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del torneo
+ *     responses:
+ *       200:
+ *         description: Lista de recompras del torneo obtenida exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 rebuys:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Rebuy'
+ *                 tournament:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       format: uuid
+ *                     name:
+ *                       type: string
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Torneo no encontrado
+ */
 // Endpoint para obtener todas las rebuys de un torneo
 router.get('/tournaments/:tournamentId/rebuys',
   authenticateToken,
@@ -503,6 +545,39 @@ router.get('/tournaments/:tournamentId/rebuys',
   }
 );
 
+/**
+ * @swagger
+ * /api/players/{playerId}/rebuys:
+ *   get:
+ *     summary: Obtener recompras de un jugador específico
+ *     tags: [Recompras]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: playerId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del jugador
+ *     responses:
+ *       200:
+ *         description: Lista de recompras del jugador obtenida exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 rebuys:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Rebuy'
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Jugador no encontrado
+ */
 // Endpoint para obtener recompras de un jugador específico
 router.get('/players/:playerId/rebuys',
   authenticateToken,

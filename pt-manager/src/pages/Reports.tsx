@@ -27,7 +27,7 @@ import {
   Delete as DeleteIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
-import { reportsService } from '../services/apiService';
+import { reportsService, playerService } from '../services/apiService';
 import { useTournamentStore } from '../store/tournamentStore';
 import { useAuthStore } from '../store/authStore';
 import { getUserDisplayName } from '../utils/userUtils';
@@ -48,6 +48,8 @@ const Reports: React.FC = () => {
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+  const [tournamentPlayerCounts, setTournamentPlayerCounts] = useState<{[key: string]: number}>({});
+  const [playerCountsLoading, setPlayerCountsLoading] = useState(false);
   
   // Estados para el modal de detalle de torneos
   const [tournamentDetailsOpen, setTournamentDetailsOpen] = useState(false);
@@ -61,6 +63,12 @@ const Reports: React.FC = () => {
     loadLeaderboard();
   }, [loadTournaments]);
 
+  useEffect(() => {
+    if (tournaments && tournaments.length > 0) {
+      loadTournamentPlayerCounts();
+    }
+  }, [tournaments]);
+
   const loadLeaderboard = async () => {
     try {
       setLeaderboardLoading(true);
@@ -71,6 +79,34 @@ const Reports: React.FC = () => {
       setLeaderboardError(err instanceof Error ? err.message : 'Error al cargar la tabla de posiciones');
     } finally {
       setLeaderboardLoading(false);
+    }
+  };
+
+  const loadTournamentPlayerCounts = async () => {
+    if (!tournaments || tournaments.length === 0) return;
+    
+    try {
+      setPlayerCountsLoading(true);
+      const counts: {[key: string]: number} = {};
+      
+      // Cargar conteos de jugadores para cada torneo en paralelo
+      await Promise.all(
+        tournaments.map(async (tournament) => {
+          try {
+            const response = await playerService.getTournamentPlayers(tournament.id);
+            counts[tournament.id] = response.players?.length || 0;
+          } catch (err) {
+            console.error(`Error cargando jugadores para torneo ${tournament.id}:`, err);
+            counts[tournament.id] = 0;
+          }
+        })
+      );
+      
+      setTournamentPlayerCounts(counts);
+    } catch (err) {
+      console.error('Error cargando conteos de jugadores:', err);
+    } finally {
+      setPlayerCountsLoading(false);
     }
   };
 
@@ -242,7 +278,13 @@ const Reports: React.FC = () => {
                           'N/A'
                         }
                       </TableCell>
-                      <TableCell>0</TableCell>
+                      <TableCell>
+                        {playerCountsLoading ? (
+                          <CircularProgress size={16} />
+                        ) : (
+                          tournamentPlayerCounts[tournament.id] || 0
+                        )}
+                      </TableCell>
                       <TableCell align="center">
                         {user?.is_admin && (
                           <Box display="flex" justifyContent="center" gap={1}>

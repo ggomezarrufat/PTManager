@@ -1,34 +1,23 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "pt-manager/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "build"
-      }
-    },
-    {
-      "src": "pt-backend/src/index.js",
-      "use": "@vercel/node"
-    }
-  ],
+  "buildCommand": "cd pt-manager && npm run build",
+  "outputDirectory": "pt-manager/build",
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "pt-backend/src/index.js"
+      "dest": "/api/$1"
     },
     {
       "src": "/health",
-      "dest": "pt-backend/src/index.js"
+      "dest": "/api/health"
     },
     {
       "src": "/api-docs",
-      "dest": "pt-backend/src/index.js"
+      "dest": "/api/api-docs"
     },
     {
       "src": "/(.*)",
-      "dest": "pt-manager/build/index.html"
+      "dest": "/$1"
     }
   ],
   "env": {
@@ -36,6 +25,7 @@
   },
   "functions": {
     "pt-backend/src/index.js": {
+      "runtime": "nodejs18.x",
       "maxDuration": 30
     }
   },

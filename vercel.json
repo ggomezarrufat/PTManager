@@ -5,15 +5,15 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/api/$1"
+      "dest": "/pt-backend/src/index.js"
     },
     {
       "src": "/health",
-      "dest": "/api/health"
+      "dest": "/pt-backend/src/index.js"
     },
     {
       "src": "/api-docs",
-      "dest": "/api/api-docs"
+      "dest": "/pt-backend/src/index.js"
     },
     {
       "src": "/(.*)",
@@ -22,10 +22,5 @@
   ],
   "env": {
     "NODE_ENV": "production"
-  },
-  "functions": {
-    "pt-backend/src/index.js": {
-      "maxDuration": 30
-    }
   }
 }

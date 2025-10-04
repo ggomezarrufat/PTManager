@@ -187,7 +187,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* PKT Manager Version */}
       <Box sx={{ p: 2, textAlign: 'center' }}>
         <Typography variant="caption" color="text.secondary">
-          PKT Manager 1.0
+          PKT Manager 1.1
         </Typography>
       </Box>
 

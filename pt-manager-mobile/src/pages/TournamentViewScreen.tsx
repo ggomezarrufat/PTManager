@@ -149,6 +149,8 @@ const TournamentViewScreen: React.FC = ({ route, navigation }: any) => {
         {currentTournament.status === 'active' && (
           <View style={styles.clockSection}>
             <TournamentClock
+              tournamentId={tournamentId}
+              clock={clock}
               tournament={currentTournament}
               isAdmin={user?.is_admin}
               onLevelChange={onRefresh}

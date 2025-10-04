@@ -285,6 +285,7 @@ router.get('/tournaments/:tournamentId/players',
       }
 
       const { tournamentId } = req.params;
+      console.log('📋 Backend: Obteniendo jugadores del torneo:', tournamentId);
 
       // 1) Obtener jugadores (sin joins para evitar dependencia de FK)
       const { data: players, error: playersError } = await supabase
@@ -292,6 +293,8 @@ router.get('/tournaments/:tournamentId/players',
         .select('*')
         .eq('tournament_id', tournamentId)
         .order('registration_time', { ascending: true });
+
+      console.log('📋 Backend: Jugadores encontrados:', players?.length || 0);
 
       if (playersError) {
         console.error('Error obteniendo jugadores:', playersError);
@@ -414,6 +417,24 @@ router.delete('/players/:playerId',
       }
 
       const { playerId } = req.params;
+      console.log('🗑️ Backend: Eliminando jugador con ID:', playerId);
+
+      // Verificar que el jugador existe antes de eliminar
+      const { data: existingPlayer, error: checkError } = await supabase
+        .from('tournament_players')
+        .select('id, tournament_id, user_id')
+        .eq('id', playerId)
+        .single();
+
+      if (checkError || !existingPlayer) {
+        console.log('❌ Backend: Jugador no encontrado:', playerId);
+        return res.status(404).json({
+          error: 'Player not found',
+          message: 'Jugador no encontrado'
+        });
+      }
+
+      console.log('✅ Backend: Jugador encontrado, eliminando:', existingPlayer);
 
       const { error } = await supabase
         .from('tournament_players')
@@ -421,10 +442,11 @@ router.delete('/players/:playerId',
         .eq('id', playerId);
 
       if (error) {
-        console.error('Error desregistrando jugador:', error);
+        console.error('❌ Backend: Error desregistrando jugador:', error);
         throw error;
       }
 
+      console.log('✅ Backend: Jugador eliminado exitosamente');
       res.json({ message: 'Jugador desregistrado exitosamente' });
     } catch (error) {
       next(error);
@@ -558,6 +580,68 @@ router.post('/tournaments/:tournamentId/players',
 
 /**
  * @swagger
+ * /api/players/{playerId}/check:
+ *   get:
+ *     summary: Verificar si un jugador existe
+ *     tags: [Players]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: playerId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Jugador encontrado
+ *       404:
+ *         description: Jugador no encontrado
+ */
+router.get('/players/:playerId/check',
+  authenticateToken,
+  [
+    param('playerId').isUUID().withMessage('Player ID debe ser un UUID válido')
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'Datos de entrada inválidos',
+          details: errors.array()
+        });
+      }
+
+      const { playerId } = req.params;
+
+      const { data: player, error } = await supabase
+        .from('tournament_players')
+        .select('id, user_id, tournament_id, is_active, is_eliminated')
+        .eq('id', playerId)
+        .single();
+
+      if (error || !player) {
+        return res.status(404).json({
+          error: 'Player not found',
+          message: 'Jugador no encontrado'
+        });
+      }
+
+      res.json({
+        message: 'Jugador encontrado',
+        player: player
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
  * /api/players/{playerId}/eliminate:
  *   put:
  *     summary: Eliminar jugador del torneo con cálculo automático de posición y puntos
@@ -577,6 +661,10 @@ router.post('/tournaments/:tournamentId/players',
  *           schema:
  *             type: object
  *             properties:
+ *               tournament_id:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del torneo (requerido para validación)
  *               final_position:
  *                 type: number
  *                 description: Posición final (opcional, se calcula automáticamente)
@@ -597,6 +685,7 @@ router.post('/tournaments/:tournamentId/players',
  *               properties:
  *                 message:
  *                   type: string
+ *                   example: "Jugador eliminado exitosamente"
  *                 player:
  *                   $ref: '#/components/schemas/TournamentPlayer'
  *                 calculated_values:
@@ -614,11 +703,73 @@ router.post('/tournaments/:tournamentId/players',
  *                     eliminated_count:
  *                       type: number
  *                       description: Cantidad de jugadores ya eliminados
+ *       400:
+ *         description: Error de validación o datos inválidos
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Datos de entrada inválidos"
+ *                 message:
+ *                   type: string
+ *                   example: "Tournament ID debe ser un UUID válido"
+ *                 details:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       field:
+ *                         type: string
+ *                       message:
+ *                         type: string
+ *       403:
+ *         description: Acceso denegado - solo administradores
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Forbidden"
+ *                 message:
+ *                   type: string
+ *                   example: "Solo los administradores pueden eliminar jugadores"
+ *       404:
+ *         description: Jugador no encontrado o no pertenece al torneo especificado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Player not found"
+ *                 message:
+ *                   type: string
+ *                   example: "Jugador no encontrado en el torneo especificado"
+ *       409:
+ *         description: El jugador ya está eliminado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   example: "Conflict"
+ *                 message:
+ *                   type: string
+ *                   example: "El jugador ya está eliminado del torneo"
  */
 router.put('/players/:playerId/eliminate',
   authenticateToken,
   [
     param('playerId').isUUID().withMessage('Player ID debe ser un UUID válido'),
+    body('tournament_id').isUUID().withMessage('Tournament ID debe ser un UUID válido'),
     body('final_position').optional().isInt({ min: 1 }).withMessage('Final position debe ser un número entero positivo'),
     body('points_earned').optional().isInt({ min: 0 }).withMessage('Points earned debe ser un número entero no negativo'),
     body('eliminated_by').optional().isUUID().withMessage('Eliminated by debe ser un UUID válido')
@@ -635,7 +786,15 @@ router.put('/players/:playerId/eliminate',
       }
 
       const { playerId } = req.params;
-      const { final_position, points_earned, eliminated_by } = req.body;
+      const { tournament_id, final_position, points_earned, eliminated_by } = req.body;
+
+      console.log('🏁 Backend: Eliminando jugador:', {
+        playerId,
+        tournament_id,
+        final_position,
+        points_earned,
+        eliminated_by
+      });
 
       // Verificar que el usuario sea administrador
       if (!req.profile?.is_admin) {
@@ -658,12 +817,13 @@ router.put('/players/:playerId/eliminate',
         .from('tournament_players')
         .select('tournament_id, final_position')
         .eq('id', playerId)
+        .eq('tournament_id', tournament_id) // Validar que el jugador pertenece al torneo correcto
         .single();
 
       if (playerError || !playerData) {
         return res.status(404).json({
           error: 'Player not found',
-          message: 'Jugador no encontrado'
+          message: 'Jugador no encontrado en el torneo especificado'
         });
       }
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -23,19 +23,42 @@ const ClockScreen: React.FC = ({ route, navigation }: any) => {
     currentTournament, 
     clock, 
     loading, 
+    tournamentStats,
+    tournamentStatsLoading,
     loadTournaments,
     loadTournament, 
+    loadPlayers,
     loadClock,
+    loadTournamentStats,
     startClock,
     pauseClock,
     resumeClock
   } = useTournamentStore();
   const [refreshing, setRefreshing] = useState(false);
+  const statsRefreshInterval = useRef<NodeJS.Timeout | null>(null);
+
+  // Función para refrescar solo las estadísticas
+  const refreshStats = async () => {
+    if (tournamentId) {
+      try {
+        await loadPlayers(tournamentId);
+        await loadTournamentStats(tournamentId);
+        console.log('📊 Estadísticas del torneo actualizadas automáticamente');
+      } catch (error) {
+        console.log('❌ Error actualizando estadísticas automáticamente:', error);
+      }
+    }
+  };
 
   useEffect(() => {
     if (tournamentId) {
-      loadTournament(tournamentId);
-      loadClock(tournamentId);
+      const loadData = async () => {
+        await loadTournament(tournamentId);
+        await loadPlayers(tournamentId); // Cargar jugadores primero
+        await loadClock(tournamentId);
+        await loadTournamentStats(tournamentId); // Luego las estadísticas
+      };
+      loadData();
     } else {
       // Si no hay tournamentId, cargar todos los torneos
       loadTournaments();
@@ -45,15 +68,33 @@ const ClockScreen: React.FC = ({ route, navigation }: any) => {
   const onRefresh = async () => {
     setRefreshing(true);
     if (tournamentId) {
-      await Promise.all([
-        loadTournament(tournamentId),
-        loadClock(tournamentId)
-      ]);
+      await loadTournament(tournamentId);
+      await loadPlayers(tournamentId); // Cargar jugadores primero
+      await loadClock(tournamentId);
+      await loadTournamentStats(tournamentId); // Luego las estadísticas
     } else {
       await loadTournaments();
     }
     setRefreshing(false);
   };
+
+  // useEffect para manejar el refresco automático de estadísticas cada 2 minutos
+  useEffect(() => {
+    if (tournamentId) {
+      // Configurar el intervalo de refresco cada 2 minutos (120,000 ms)
+      statsRefreshInterval.current = setInterval(() => {
+        refreshStats();
+      }, 120000); // 2 minutos
+
+      // Limpiar el intervalo cuando el componente se desmonte o cambie el tournamentId
+      return () => {
+        if (statsRefreshInterval.current) {
+          clearInterval(statsRefreshInterval.current);
+          statsRefreshInterval.current = null;
+        }
+      };
+    }
+  }, [tournamentId]);
 
   // Si hay un torneo específico, mostrar su reloj
   if (tournamentId && currentTournament) {
@@ -76,10 +117,17 @@ const ClockScreen: React.FC = ({ route, navigation }: any) => {
           <TournamentClock 
             tournamentId={tournamentId}
             clock={clock}
+            tournament={currentTournament}
             onStartClock={() => startClock(tournamentId)}
             onPauseClock={() => pauseClock(tournamentId)}
             onResumeClock={() => resumeClock(tournamentId)}
             isAdmin={user?.is_admin || false}
+            onLevelChange={() => {
+              // Recargar el reloj cuando cambie el nivel o se ajuste el tiempo
+              loadClock(tournamentId);
+            }}
+            tournamentStats={tournamentStats}
+            tournamentStatsLoading={tournamentStatsLoading}
           />
         </ScrollView>
       </LinearGradient>
@@ -146,12 +194,17 @@ const ClockScreen: React.FC = ({ route, navigation }: any) => {
                 </View>
                 
                 <TournamentClock
+                  tournamentId={tournament.id}
                   tournament={tournament}
                   isAdmin={user?.is_admin}
                   onLevelChange={() => {
                     // Recargar datos del torneo cuando cambie el nivel
                     loadTournaments();
+                    loadPlayers(tournament.id);
+                    loadTournamentStats(tournament.id);
                   }}
+                  tournamentStats={tournamentStats}
+                  tournamentStatsLoading={tournamentStatsLoading}
                 />
               </View>
             ))}

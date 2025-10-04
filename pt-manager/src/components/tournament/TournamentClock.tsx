@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, FormControlLabel, Switch, Stack } from '@mui/material';
+import { Box, Card, CardContent, Typography, Button, Chip, Alert, LinearProgress, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem, FormControlLabel, Switch, Stack, Autocomplete, CircularProgress } from '@mui/material';
 import { PlayArrow, Pause, SkipNext, SkipPrevious, People, Assessment, Stop, PersonAdd, ShoppingCart } from '@mui/icons-material';
 import { useTournamentClock } from '../../hooks/useTournamentClock';
 import { useAuthStore } from '../../store/authStore';
-import { tournamentService, playerService, rebuyService, addonService, API_BASE_URL } from '../../services/apiService';
+import { tournamentService, playerService, rebuyService, addonService, API_BASE_URL, userService } from '../../services/apiService';
 import { API_URLS } from '../../config/api';
 import { TournamentPlayer } from '../../types';
+import { getUserDisplayName } from '../../utils/userUtils';
 import PlayerListItem from './PlayerListItem';
 import { useNavigate } from 'react-router-dom';
 
@@ -69,6 +70,11 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   const [selectedUserId, setSelectedUserId] = useState('');
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [addingPlayer, setAddingPlayer] = useState(false);
+  
+  // Filtrar usuarios que ya están en el torneo
+  const availableUsersForTournament = availableUsers.filter(
+    user => !players.some(player => player.user_id === user.id)
+  );
   
   // Filtrar jugadores según el switch
   const activePlayers = players.filter(p => p.is_active && !p.is_eliminated);
@@ -481,28 +487,20 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   };
 
   // Cargar usuarios disponibles para agregar al torneo
-  const loadAvailableUsers = async () => {
+  const loadAvailableUsers = async (search?: string) => {
     setLoadingUsers(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-        },
+      console.log('🔍 TournamentClock: Cargando usuarios disponibles...');
+      const response = await userService.getAvailableUsersForTournament(search, 100);
+      console.log('📊 TournamentClock: Usuarios obtenidos:', {
+        total: response.users?.length || 0,
+        search: search || 'sin búsqueda'
       });
-
-      if (!response.ok) {
-        throw new Error('Error cargando usuarios');
-      }
-
-      const data = await response.json();
       
-      // Filtrar usuarios que no están ya en el torneo
-      const playerUserIds = players.map(p => p.user_id);
-      const availableUsers = data.users.filter((user: any) => !playerUserIds.includes(user.id));
-      
-      setAvailableUsers(availableUsers);
+      // Guardar todos los usuarios, el filtrado se hace en availableUsersForTournament
+      setAvailableUsers(response.users || []);
     } catch (error) {
-      console.error('Error cargando usuarios:', error);
+      console.error('❌ TournamentClock: Error cargando usuarios:', error);
       setAvailableUsers([]);
     } finally {
       setLoadingUsers(false);
@@ -1261,21 +1259,60 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
           </DialogTitle>
           <DialogContent>
             <Box display="flex" flexDirection="column" gap={3} pt={1}>
-              <TextField
-                select
-                label="Seleccionar Usuario"
-                value={selectedUserId}
-                onChange={(e) => setSelectedUserId(e.target.value)}
-                fullWidth
+              <Autocomplete
+                options={availableUsersForTournament}
+                getOptionLabel={(option) => `${getUserDisplayName(option)} - ${option.email}`}
+                value={availableUsers.find(user => user.id === selectedUserId) || null}
+                onChange={(event, newValue) => {
+                  setSelectedUserId(newValue?.id || '');
+                }}
+                loading={loadingUsers}
                 disabled={loadingUsers}
-                helperText={loadingUsers ? 'Cargando usuarios...' : 'Selecciona un usuario para agregar al torneo'}
-              >
-                {availableUsers.map((user) => (
-                  <MenuItem key={user.id} value={user.id}>
-                    {user.name} {user.nickname && `(@${user.nickname})`} - {user.email}
-                  </MenuItem>
-                ))}
-              </TextField>
+                isOptionEqualToValue={(option, value) => option.id === value?.id}
+                filterOptions={(options, { inputValue }) => {
+                  // Búsqueda local en tiempo real
+                  return options.filter(option => {
+                    const displayName = getUserDisplayName(option).toLowerCase();
+                    const email = option.email.toLowerCase();
+                    const searchTerm = inputValue.toLowerCase();
+                    
+                    return displayName.includes(searchTerm) || 
+                           email.includes(searchTerm) ||
+                           (option.nickname && option.nickname.toLowerCase().includes(searchTerm));
+                  });
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Buscar y Seleccionar Usuario"
+                    placeholder="Escribe para buscar..."
+                    helperText={`${availableUsersForTournament.length} usuarios disponibles`}
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {loadingUsers ? <CircularProgress color="inherit" size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <Box component="li" {...props}>
+                    <Box>
+                      <Typography variant="body1">
+                        {getUserDisplayName(option)}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {option.email}
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+                noOptionsText="No se encontraron usuarios"
+                loadingText="Cargando usuarios..."
+              />
 
               {tournamentInfo && (
                 <Box sx={{ p: 2, bgcolor: 'info.light', borderRadius: 1 }}>
@@ -1291,7 +1328,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
                 </Box>
               )}
 
-              {availableUsers.length === 0 && !loadingUsers && (
+              {availableUsersForTournament.length === 0 && !loadingUsers && (
                 <Alert severity="info">
                   No hay usuarios disponibles para agregar al torneo. Todos los usuarios ya están registrados.
                 </Alert>

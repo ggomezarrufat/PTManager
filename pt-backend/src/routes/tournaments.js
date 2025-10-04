@@ -396,89 +396,6 @@ router.put('/:id/start', [
 
 /**
  * @swagger
- * /api/tournaments/{id}/finish:
- *   put:
- *     summary: Finalizar torneo
- *     tags: [Torneos]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *     responses:
- *       200:
- *         description: Torneo finalizado exitosamente
- *       404:
- *         description: Torneo no encontrado
- *       400:
- *         description: No se puede finalizar el torneo
- */
-router.put('/:id/finish', [
-  param('id').isUUID().withMessage('ID debe ser un UUID válido')
-], authenticateToken, async (req, res, next) => {
-  try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({
-        error: 'Validation Error',
-        details: errors.array()
-      });
-    }
-
-    const { id } = req.params;
-
-    // Verificar que el torneo existe y puede ser finalizado
-    const { data: tournament, error: tournamentError } = await supabase
-      .from('tournaments')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (tournamentError || !tournament) {
-      return res.status(404).json({
-        error: 'Tournament Not Found',
-        message: 'Torneo no encontrado'
-      });
-    }
-
-    if (!['active', 'paused'].includes(tournament.status)) {
-      return res.status(400).json({
-        error: 'Invalid Tournament Status',
-        message: 'Solo se pueden finalizar torneos activos o pausados'
-      });
-    }
-
-    // Actualizar estado del torneo
-    const { data: updatedTournament, error: updateError } = await supabase
-      .from('tournaments')
-      .update({
-        status: 'finished',
-        end_time: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (updateError) {
-      throw updateError;
-    }
-
-    res.json({
-      message: 'Torneo finalizado exitosamente',
-      tournament: updatedTournament
-    });
-
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
- * @swagger
  * /api/tournaments/{id}/pause:
  *   put:
  *     summary: Pausar torneo
@@ -634,6 +551,89 @@ router.delete('/:id', [
     if (error) throw error;
 
     res.json({ message: 'Torneo eliminado exitosamente' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/tournaments/{id}/finish:
+ *   put:
+ *     summary: Finalizar torneo
+ *     tags: [Torneos]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Torneo finalizado exitosamente
+ *       404:
+ *         description: Torneo no encontrado
+ *       400:
+ *         description: No se puede finalizar el torneo
+ */
+router.put('/:id/finish', [
+  param('id').isUUID().withMessage('ID debe ser un UUID válido')
+], authenticateToken, async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        details: errors.array()
+      });
+    }
+
+    const { id } = req.params;
+
+    // Verificar que el torneo existe y puede ser finalizado
+    const { data: tournament, error: tournamentError } = await supabase
+      .from('tournaments')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (tournamentError || !tournament) {
+      return res.status(404).json({
+        error: 'Tournament Not Found',
+        message: 'Torneo no encontrado'
+      });
+    }
+
+    if (!['active', 'paused'].includes(tournament.status)) {
+      return res.status(400).json({
+        error: 'Invalid Tournament Status',
+        message: 'Solo se pueden finalizar torneos activos o pausados'
+      });
+    }
+
+    // Actualizar estado del torneo
+    const { data: updatedTournament, error: updateError } = await supabase
+      .from('tournaments')
+      .update({
+        status: 'finished',
+        end_time: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    res.json({
+      message: 'Torneo finalizado exitosamente',
+      tournament: updatedTournament
+    });
+
   } catch (error) {
     next(error);
   }

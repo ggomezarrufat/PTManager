@@ -1,5 +1,4 @@
 import { supabase } from '../config/supabase';
-import { API_URLS } from '../config/api';
 
 interface TournamentResponse {
   message: string;
@@ -13,18 +12,21 @@ interface ClockResponse {
 
 class TournamentService {
   private getApiBaseUrl(): string {
-    // En desarrollo, usar localhost
-    if (__DEV__) {
-      return 'http://localhost:3001';
-    }
-
-    // En producción, usar variables de entorno
+    // Siempre usar variables de entorno si están disponibles
     const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL;
     if (apiUrl) {
+      console.log('🔧 TournamentService - Usando URL de variables de entorno:', apiUrl);
       return apiUrl;
     }
 
-    // Fallback a la URL hardcodeada
+    // Fallback para desarrollo
+    if (__DEV__) {
+      console.log('🔧 TournamentService - Usando fallback localhost');
+      return 'http://localhost:3001';
+    }
+
+    // Fallback para producción
+    console.log('🔧 TournamentService - Usando fallback producción');
     return 'https://pt-manager.vercel.app';
   }
 
@@ -35,7 +37,11 @@ class TournamentService {
       throw new Error('No hay sesión activa');
     }
 
-    const response = await fetch(`${this.getApiBaseUrl()}${endpoint}`, {
+    const fullUrl = `${this.getApiBaseUrl()}${endpoint}`;
+    console.log('🔧 TournamentService - URL:', fullUrl);
+    console.log('🔧 TournamentService - Token:', session.access_token ? '✅ Presente' : '❌ Faltante');
+
+    const response = await fetch(fullUrl, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
@@ -94,6 +100,46 @@ class TournamentService {
   async getLeaderboard(): Promise<{ leaderboard: any[] }> {
     return this.makeRequest<{ leaderboard: any[] }>('/api/reports/leaderboard');
   }
+
+  async getTournamentClock(tournamentId: string): Promise<{ clock: any }> {
+    return this.makeRequest<{ clock: any }>(`/api/tournaments/${tournamentId}/clock`);
+  }
+
+  async createTournamentClock(tournamentId: string, clockData: any): Promise<{ clock: any }> {
+    return this.makeRequest<{ clock: any }>(`/api/tournaments/${tournamentId}/clock`, {
+      method: 'POST',
+      body: JSON.stringify(clockData)
+    });
+  }
+
+  async togglePause(tournamentId: string): Promise<{ clock: any }> {
+    return this.makeRequest<{ clock: any }>(`/api/tournaments/${tournamentId}/clock/toggle-pause`, {
+      method: 'PUT'
+    });
+  }
+
+  async changeLevel(tournamentId: string, newLevel: number): Promise<{ success: boolean }> {
+    return this.makeRequest<{ success: boolean }>('/api/clock/level', {
+      method: 'POST',
+      body: JSON.stringify({ tournamentId, newLevel })
+    });
+  }
+
+  async adjustTime(tournamentId: string, adjustmentSeconds: number): Promise<{ success: boolean }> {
+    return this.makeRequest<{ success: boolean }>('/api/clock/adjust', {
+      method: 'POST',
+      body: JSON.stringify({ tournamentId, newSeconds: adjustmentSeconds })
+    });
+  }
+
+  async getTournamentRebuys(tournamentId: string): Promise<{ rebuys: any[] }> {
+    return this.makeRequest<{ rebuys: any[] }>(`/api/tournaments/${tournamentId}/rebuys`);
+  }
+
+  async getTournamentAddons(tournamentId: string): Promise<{ addons: any[] }> {
+    return this.makeRequest<{ addons: any[] }>(`/api/tournaments/${tournamentId}/addons`);
+  }
+
 }
 
 export const tournamentService = new TournamentService();

@@ -8,6 +8,14 @@ interface TournamentStore extends TournamentState {
   leaderboard: any[];
   leaderboardLoading: boolean;
   leaderboardError: string | null;
+  tournamentStats: {
+    activePlayers: number;
+    totalRebuys: number;
+    totalAddons: number;
+    lastUpdated: string;
+  } | null;
+  tournamentStatsLoading: boolean;
+  tournamentStatsError: string | null;
   loadTournaments: () => Promise<void>;
   loadTournament: (id: string) => Promise<void>;
   createTournament: (tournament: Omit<Tournament, 'id' | 'created_at' | 'updated_at'>) => Promise<void>;
@@ -18,14 +26,19 @@ interface TournamentStore extends TournamentState {
   addPlayer: (tournamentId: string, userId: string) => Promise<void>;
   removePlayer: (playerId: string) => Promise<void>;
   updatePlayerChips: (playerId: string, chips: number) => Promise<void>;
-  eliminatePlayer: (playerId: string, position: number) => Promise<void>;
+  eliminatePlayer: (playerId: string, position: number, eliminatedBy?: string, pointsEarned?: number) => Promise<void>;
   loadClock: (tournamentId: string) => Promise<void>;
   startClock: (tournamentId: string) => Promise<void>;
   pauseClock: (tournamentId: string) => Promise<void>;
   resumeClock: (tournamentId: string) => Promise<void>;
   nextLevel: (tournamentId: string) => Promise<void>;
-  adjustTime: (tournamentId: string, timeRemaining: number) => Promise<void>;
+  prevLevel: (tournamentId: string) => Promise<void>;
+  adjustTime: (tournamentId: string, adjustmentSeconds: number) => Promise<void>;
+  finishTournament: (tournamentId: string) => Promise<void>;
+  registerRebuy: (playerId: string, amount: number, chips: number, adminUserId: string) => Promise<void>;
+  registerAddon: (playerId: string, amount: number, chips: number, adminUserId: string) => Promise<void>;
   loadLeaderboard: () => Promise<void>;
+  loadTournamentStats: (tournamentId: string) => Promise<void>;
 }
 
 export const useTournamentStore = create<TournamentStore>((set, get) => ({
@@ -38,6 +51,9 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
   leaderboard: [],
   leaderboardLoading: false,
   leaderboardError: null,
+  tournamentStats: null,
+  tournamentStatsLoading: false,
+  tournamentStatsError: null,
 
   loadTournaments: async () => {
     set({ loading: true, error: null });
@@ -52,7 +68,7 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
       // Asegurar que todos los torneos tengan una estructura por defecto
       const tournamentsWithStructure = (data || []).map(tournament => ({
         ...tournament,
-        structure: tournament.structure || []
+        structure: tournament.blind_structure || []
       }));
       
       set({ tournaments: tournamentsWithStructure, loading: false });
@@ -75,7 +91,7 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
       // Asegurar que el torneo tenga una estructura por defecto
       const tournamentWithStructure = {
         ...data,
-        structure: data.structure || []
+        structure: data.blind_structure || []
       };
       
       set({ currentTournament: tournamentWithStructure, loading: false });
@@ -238,16 +254,28 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
   },
 
   removePlayer: async (playerId: string) => {
+    console.log('🚀 INICIANDO removePlayer con ID:', playerId);
     set({ loading: true, error: null });
     try {
-      await playerService.removePlayer(playerId);
+      console.log('🗑️ Eliminando jugador:', playerId);
+      const response = await playerService.removePlayer(playerId);
+      console.log('✅ Respuesta del servidor:', response);
 
-      const { players } = get();
-      set({ 
-        players: players.filter(p => p.id !== playerId),
-        loading: false 
-      });
+      // Recargar la lista de jugadores desde el servidor
+      const { currentTournament } = get();
+      console.log('🏆 Torneo actual:', currentTournament?.id);
+      
+      if (currentTournament?.id) {
+        console.log('🔄 Recargando lista de jugadores...');
+        await get().loadPlayers(currentTournament.id);
+        console.log('📋 Lista recargada, jugadores actuales:', get().players.length);
+      } else {
+        console.log('❌ No hay torneo actual para recargar');
+      }
+
+      console.log('✅ Lista de jugadores actualizada');
     } catch (error: any) {
+      console.log('❌ Error eliminando jugador:', error);
       set({ error: error.message, loading: false });
     }
   },
@@ -267,19 +295,108 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
     }
   },
 
-  eliminatePlayer: async (playerId: string, position: number) => {
+  eliminatePlayer: async (playerId: string, position: number, eliminatedBy?: string, pointsEarned?: number) => {
     set({ loading: true, error: null });
     try {
-      const response = await playerService.eliminatePlayer(playerId, position);
+      console.log('🏁 Eliminando jugador:', playerId, 'con posición:', position, 'por admin:', eliminatedBy);
       
+      // Verificar que el jugador existe en el estado local antes de intentar eliminarlo
       const { players } = get();
-      const updatedPlayers = players.map(p => 
-        p.id === playerId 
-          ? { ...p, is_eliminated: true, final_position: position, eliminated_at: new Date().toISOString(), is_active: false }
-          : p
-      );
-      set({ players: updatedPlayers, loading: false });
+      console.log('📋 Lista de jugadores disponibles:', players.map(p => ({ id: p.id, name: p.user?.name, is_eliminated: p.is_eliminated })));
+      
+      const playerToEliminate = players.find(p => p.id === playerId);
+      if (!playerToEliminate) {
+        throw new Error(`Jugador con ID ${playerId} no encontrado en el estado local`);
+      }
+      console.log('✅ Jugador encontrado en estado local:', playerToEliminate.user?.name || 'Sin nombre');
+      
+      // Verificar si el jugador ya está eliminado
+      if (playerToEliminate.is_eliminated) {
+        throw new Error(`El jugador ${playerToEliminate.user?.name} ya está eliminado`);
+      }
+      
+      // Recargar jugadores para asegurar sincronización con el backend
+      const { currentTournament } = get();
+      if (currentTournament?.id) {
+        console.log('🔄 Recargando jugadores antes de eliminar para sincronizar...');
+        await get().loadPlayers(currentTournament.id);
+        
+        // Verificar nuevamente que el jugador existe después de recargar
+        const { players: refreshedPlayers } = get();
+        const refreshedPlayer = refreshedPlayers.find(p => p.id === playerId);
+        if (!refreshedPlayer) {
+          throw new Error(`Jugador con ID ${playerId} no encontrado en el backend después de recargar`);
+        }
+        console.log('✅ Jugador confirmado en backend después de recargar:', refreshedPlayer.user?.name || 'Sin nombre');
+      }
+      
+      // Verificar directamente en el backend si el jugador existe
+      try {
+        console.log('🔍 Verificando existencia del jugador en backend...');
+        const checkResponse = await playerService.checkPlayerExists(playerId);
+        console.log('✅ Jugador verificado en backend:', checkResponse.player);
+      } catch (checkError) {
+        console.log('❌ Jugador no encontrado en backend:', checkError);
+        throw new Error(`El jugador no existe en el backend: ${checkError.message}`);
+      }
+      
+      const response = await playerService.eliminatePlayer(playerId, currentTournament.id, position, eliminatedBy, pointsEarned);
+      console.log('✅ Respuesta completa del servidor:', JSON.stringify(response, null, 2));
+      console.log('✅ Jugador actualizado del backend:', response.player);
+      console.log('✅ Valores calculados del backend:', response.calculated_values);
+      
+      // Actualizar estado local con los datos del backend
+      if (response.player) {
+        console.log('🔄 Actualizando estado local con datos del backend');
+        set((state) => {
+          const updatedPlayers = state.players.map(p =>
+            p.id === playerId
+              ? {
+                  ...p,
+                  ...response.player,
+                  // Asegurar que los campos estén actualizados
+                  is_active: false,
+                  is_eliminated: true
+                }
+              : p
+          );
+          console.log('📋 Jugador actualizado en estado local:', updatedPlayers.find(p => p.id === playerId));
+          return { players: updatedPlayers };
+        });
+      } else {
+        // Fallback si el backend no devuelve el player actualizado
+        set((state) => ({
+          players: state.players.map(p =>
+            p.id === playerId
+              ? {
+                  ...p,
+                  is_active: false,
+                  is_eliminated: true,
+                  final_position: position,
+                  points_earned: pointsEarned || 0,
+                  eliminated_at: new Date().toISOString(),
+                  eliminated_by: eliminatedBy
+                }
+              : p
+          )
+        }));
+      }
+      
+      // Recargar la lista de jugadores desde el servidor para sincronizar
+      if (currentTournament?.id) {
+        console.log('🔄 Recargando lista de jugadores después de eliminar...');
+        await get().loadPlayers(currentTournament.id);
+        console.log('📋 Lista recargada después de eliminar');
+        
+        // Verificar el estado final del jugador eliminado
+        const { players } = get();
+        const eliminatedPlayer = players.find(p => p.id === playerId);
+        console.log('🏁 Estado final del jugador eliminado:', eliminatedPlayer);
+      }
+      
+      set({ loading: false });
     } catch (error: any) {
+      console.log('❌ Error eliminando jugador:', error);
       set({ error: error.message, loading: false });
     }
   },
@@ -356,58 +473,58 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
   nextLevel: async (tournamentId: string) => {
     set({ loading: true, error: null });
     try {
-      const { clock, currentTournament } = get();
-      if (!clock || !currentTournament) return;
+      const { clock } = get();
+      if (!clock) return;
 
       const nextLevel = clock.current_level + 1;
-      const structure = currentTournament.structure;
-      const levelData = structure.find(s => s.level === nextLevel);
+      console.log('🔄 Avanzando al nivel:', nextLevel);
       
-      if (!levelData) return;
-
-      const { error } = await supabase
-        .from('tournament_clocks')
-        .update({ 
-          current_level: nextLevel,
-          time_remaining: levelData.duration * 60, // Convertir a segundos
-          is_break: levelData.is_break
-        })
-        .eq('tournament_id', tournamentId);
-
-      if (error) throw error;
-
-      set({ 
-        clock: { 
-          ...clock, 
-          current_level: nextLevel,
-          time_remaining: levelData.duration * 60,
-          is_break: levelData.is_break
-        },
-        loading: false 
-      });
+      const response = await tournamentService.changeLevel(tournamentId, nextLevel);
+      console.log('✅ Nivel avanzado:', response);
+      
+      // Recargar el reloj después del cambio
+      await get().loadClock(tournamentId);
+      set({ loading: false });
     } catch (error: any) {
+      console.log('❌ Error avanzando nivel:', error);
       set({ error: error.message, loading: false });
     }
   },
 
-  adjustTime: async (tournamentId: string, timeRemaining: number) => {
+  prevLevel: async (tournamentId: string) => {
     set({ loading: true, error: null });
     try {
-      const { error } = await supabase
-        .from('tournament_clocks')
-        .update({ time_remaining: timeRemaining })
-        .eq('tournament_id', tournamentId);
-
-      if (error) throw error;
-
       const { clock } = get();
-      if (clock) {
-        set({ 
-          clock: { ...clock, time_remaining },
-          loading: false 
-        });
-      }
+      if (!clock || clock.current_level <= 1) return;
+
+      const prevLevel = clock.current_level - 1;
+      console.log('🔄 Retrocediendo al nivel:', prevLevel);
+      
+      const response = await tournamentService.changeLevel(tournamentId, prevLevel);
+      console.log('✅ Nivel retrocedido:', response);
+      
+      // Recargar el reloj después del cambio
+      await get().loadClock(tournamentId);
+      set({ loading: false });
     } catch (error: any) {
+      console.log('❌ Error retrocediendo nivel:', error);
+      set({ error: error.message, loading: false });
+    }
+  },
+
+  adjustTime: async (tournamentId: string, adjustmentSeconds: number) => {
+    set({ loading: true, error: null });
+    try {
+      console.log('🔄 Ajustando tiempo:', adjustmentSeconds, 'segundos');
+      
+      const response = await tournamentService.adjustTime(tournamentId, adjustmentSeconds);
+      console.log('✅ Tiempo ajustado:', response);
+      
+      // Recargar el reloj después del ajuste
+      await get().loadClock(tournamentId);
+      set({ loading: false });
+    } catch (error: any) {
+      console.log('❌ Error ajustando tiempo:', error);
       set({ error: error.message, loading: false });
     }
   },
@@ -428,6 +545,119 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
         leaderboardError: error.message, 
         leaderboardLoading: false 
       });
+    }
+  },
+
+  loadTournamentStats: async (tournamentId: string) => {
+    set({ tournamentStatsLoading: true, tournamentStatsError: null });
+    try {
+      console.log('🔄 Cargando estadísticas del torneo:', tournamentId);
+      
+      // Obtener jugadores activos desde el estado local
+      const { players } = get();
+      const activePlayers = players.filter(p => p.is_active && !p.is_eliminated).length;
+      
+      // Calcular rebuys y addons desde los jugadores cargados
+      const totalRebuys = players.reduce((sum, player) => sum + (player.rebuys_count || 0), 0);
+      const totalAddons = players.reduce((sum, player) => sum + (player.addons_count || 0), 0);
+      
+      console.log('✅ Estadísticas cargadas:', { activePlayers, totalRebuys, totalAddons });
+      
+      set({ 
+        tournamentStats: {
+          activePlayers,
+          totalRebuys,
+          totalAddons,
+          lastUpdated: new Date().toISOString()
+        },
+        tournamentStatsLoading: false 
+      });
+    } catch (error: any) {
+      console.log('❌ Error cargando estadísticas del torneo:', error);
+      set({ 
+        tournamentStatsError: error.message, 
+        tournamentStatsLoading: false 
+      });
+    }
+  },
+
+  finishTournament: async (tournamentId: string) => {
+    set({ loading: true, error: null });
+    try {
+      console.log('🏁 Finalizando torneo:', tournamentId);
+      
+      const response = await tournamentService.finishTournament(tournamentId);
+      console.log('✅ Torneo finalizado:', response.tournament);
+      
+      // Actualizar el estado del torneo actual
+      const { currentTournament } = get();
+      if (currentTournament && currentTournament.id === tournamentId) {
+        set({ 
+          currentTournament: {
+            ...currentTournament,
+            status: 'finished',
+            finished_at: response.tournament.finished_at
+          },
+          loading: false 
+        });
+      }
+      
+      // Recargar el reloj para que se pausé
+      await get().loadClock(tournamentId);
+      
+    } catch (error: any) {
+      console.log('❌ Error finalizando torneo:', error);
+      set({ error: error.message, loading: false });
+    }
+  },
+
+  registerRebuy: async (playerId: string, amount: number, chips: number, adminUserId: string) => {
+    set({ loading: true, error: null });
+    try {
+      console.log('🔄 Registrando rebuy:', { playerId, amount, chips, adminUserId });
+      
+      const response = await playerService.registerRebuy(playerId, {
+        amount,
+        chips_received: chips,
+        admin_user_id: adminUserId
+      });
+      console.log('✅ Rebuy registrado:', response);
+      
+      // Recargar la lista de jugadores para actualizar las fichas
+      const { currentTournament } = get();
+      if (currentTournament?.id) {
+        await get().loadPlayers(currentTournament.id);
+      }
+      
+      set({ loading: false });
+    } catch (error: any) {
+      console.log('❌ Error registrando rebuy:', error);
+      set({ error: error.message, loading: false });
+    }
+  },
+
+  registerAddon: async (playerId: string, amount: number, chips: number, adminUserId: string) => {
+    set({ loading: true, error: null });
+    try {
+      console.log('🔄 Registrando addon:', { playerId, amount, chips, adminUserId });
+      
+      const response = await playerService.registerAddon(playerId, {
+        amount,
+        chips_received: chips,
+        admin_user_id: adminUserId
+      });
+      console.log('✅ Addon registrado:', response);
+      
+      // Recargar la lista de jugadores para actualizar las fichas
+      const { currentTournament } = get();
+      if (currentTournament?.id) {
+        await get().loadPlayers(currentTournament.id);
+      }
+      
+      set({ loading: false });
+    } catch (error: any) {
+      console.log('❌ Error registrando addon:', error);
+      set({ error: error.message, loading: false });
     }
   },
 }));

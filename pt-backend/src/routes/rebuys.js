@@ -512,16 +512,7 @@ router.get('/tournaments/:tournamentId/rebuys',
       // Obtener todas las recompras del torneo
       const { data: rebuys, error } = await supabase
         .from('rebuys')
-        .select(`
-          *,
-          tournament_players (
-            user_id,
-            users:profiles (
-              name,
-              nickname
-            )
-          )
-        `)
+        .select('*')
         .eq('tournament_id', tournamentId)
         .order('timestamp', { ascending: true });
 

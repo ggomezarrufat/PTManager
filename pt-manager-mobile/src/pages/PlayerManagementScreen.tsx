@@ -14,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../store/authStore';
 import { useTournamentStore } from '../store/tournamentStore';
 import PlayerSelectionModal from '../components/PlayerSelectionModal';
+import { canMakeRebuy, canMakeAddon, getRebuyStatusMessage, getAddonStatusMessage } from '../utils/tournamentRules';
+import PlayerEliminationModal from '../components/PlayerEliminationModal';
 
 const PlayerManagementScreen: React.FC = ({ route, navigation }: any) => {
   const { tournamentId } = route.params;
@@ -21,17 +23,22 @@ const PlayerManagementScreen: React.FC = ({ route, navigation }: any) => {
   const { 
     currentTournament, 
     players, 
+    clock,
     loading, 
     loadTournament, 
     loadPlayers,
     addPlayer,
     removePlayer,
     updatePlayerChips,
-    eliminatePlayer
+    eliminatePlayer,
+    registerRebuy,
+    registerAddon
   } = useTournamentStore();
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showPlayerSelectionModal, setShowPlayerSelectionModal] = useState(false);
+  const [showEliminationModal, setShowEliminationModal] = useState(false);
+  const [selectedPlayerForElimination, setSelectedPlayerForElimination] = useState<any>(null);
 
   useEffect(() => {
     if (tournamentId) {
@@ -74,6 +81,7 @@ const PlayerManagementScreen: React.FC = ({ route, navigation }: any) => {
   };
 
   const handleRemovePlayer = (playerId: string, playerName: string) => {
+    console.log('🎯 handleRemovePlayer llamado con:', { playerId, playerName });
     Alert.alert(
       'Eliminar Jugador',
       `¿Estás seguro de que quieres eliminar a ${playerName} del torneo?`,
@@ -83,10 +91,13 @@ const PlayerManagementScreen: React.FC = ({ route, navigation }: any) => {
           text: 'Eliminar', 
           style: 'destructive',
           onPress: async () => {
+            console.log('🔥 Usuario confirmó eliminación de:', playerId);
             try {
               await removePlayer(playerId);
+              console.log('✅ removePlayer completado en UI');
               Alert.alert('Éxito', 'Jugador eliminado correctamente');
             } catch (error) {
+              console.log('❌ Error en removePlayer UI:', error);
               Alert.alert('Error', 'No se pudo eliminar el jugador');
             }
           }
@@ -96,26 +107,31 @@ const PlayerManagementScreen: React.FC = ({ route, navigation }: any) => {
   };
 
   const handleEliminatePlayer = (playerId: string, playerName: string) => {
-    Alert.prompt(
-      'Eliminar Jugador',
-      `Ingresa la posición final de ${playerName}:`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          onPress: (position) => {
-            const pos = parseInt(position || '0');
-            if (pos > 0) {
-              eliminatePlayer(playerId, pos);
-            } else {
-              Alert.alert('Error', 'Por favor ingresa una posición válida');
-            }
-          },
-        },
-      ],
-      'plain-text',
-      '1'
-    );
+    if (!user?.id) {
+      Alert.alert('Error', 'No se puede eliminar el jugador - usuario no autenticado');
+      return;
+    }
+
+    const player = players.find(p => p.id === playerId);
+    if (player) {
+      setSelectedPlayerForElimination(player);
+      setShowEliminationModal(true);
+    }
+  };
+
+  const handleEliminationConfirm = async (position: number, points: number) => {
+    if (!selectedPlayerForElimination || !user?.id) {
+      return;
+    }
+
+    try {
+      await eliminatePlayer(selectedPlayerForElimination.id, position, user.id, points);
+      Alert.alert('Éxito', `Jugador ${selectedPlayerForElimination.user?.name} eliminado en posición ${position}`);
+      setShowEliminationModal(false);
+      setSelectedPlayerForElimination(null);
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo eliminar el jugador');
+    }
   };
 
   const handleAdjustChips = (playerId: string, playerName: string, currentChips: number) => {
@@ -138,6 +154,74 @@ const PlayerManagementScreen: React.FC = ({ route, navigation }: any) => {
       ],
       'plain-text',
       currentChips.toString()
+    );
+  };
+
+  const handleRebuy = (playerId: string, playerName: string, player: any) => {
+    if (!currentTournament || !user) {
+      Alert.alert('Error', 'No se puede procesar la recompra');
+      return;
+    }
+
+    const rebuyAllowed = canMakeRebuy(currentTournament, clock, player);
+    if (!rebuyAllowed) {
+      Alert.alert('Rebuy no disponible', getRebuyStatusMessage(currentTournament, clock, player));
+      return;
+    }
+
+    const currentRebuys = player.rebuys_count || 0;
+    const maxRebuys = currentTournament.max_rebuys || 3;
+    const remainingRebuys = maxRebuys - currentRebuys;
+
+    Alert.alert(
+      'Confirmar Recompra',
+      `¿Registrar recompra para ${playerName}?\n\nCosto: €${currentTournament.entry_fee}\nFichas: ${currentTournament.rebuy_chips}\n\nRebuys: ${currentRebuys}/${maxRebuys} (${remainingRebuys} restantes)`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            try {
+              await registerRebuy(playerId, currentTournament.entry_fee, currentTournament.rebuy_chips, user.id);
+              Alert.alert('Éxito', 'Recompra registrada correctamente');
+            } catch (error) {
+              Alert.alert('Error', 'No se pudo registrar la recompra');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleAddon = (playerId: string, playerName: string) => {
+    if (!currentTournament || !user) {
+      Alert.alert('Error', 'No se puede procesar el addon');
+      return;
+    }
+
+    const addonAllowed = canMakeAddon(currentTournament, clock);
+    if (!addonAllowed) {
+      Alert.alert('Addon no disponible', getAddonStatusMessage(currentTournament, clock));
+      return;
+    }
+
+    Alert.alert(
+      'Confirmar Addon',
+      `¿Registrar addon para ${playerName}?\n\nCosto: €${currentTournament.entry_fee}\nFichas: ${currentTournament.addon_chips}`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            try {
+              await registerAddon(playerId, currentTournament.entry_fee, currentTournament.addon_chips, user.id);
+              Alert.alert('Éxito', 'Addon registrado correctamente');
+            } catch (error) {
+              Alert.alert('Error', 'No se pudo registrar el addon');
+            }
+          },
+        },
+      ]
     );
   };
 
@@ -243,31 +327,51 @@ const PlayerManagementScreen: React.FC = ({ route, navigation }: any) => {
                     </View>
                   </View>
                   <View style={styles.playerStats}>
-                    <Text style={styles.playerStat}>
-                      {player.rebuys} rebuys
-                    </Text>
-                    <Text style={styles.playerStat}>
-                      {player.addons} addons
-                    </Text>
+                    <View style={styles.statItem}>
+                      <Ionicons name="refresh" size={14} color="#2ed573" />
+                      <Text style={[styles.playerStat, (player.rebuys_count || 0) > 0 && styles.activeStat]}>
+                        {player.rebuys_count || 0} rebuys
+                      </Text>
+                    </View>
+                    <View style={styles.statItem}>
+                      <Ionicons name="add-circle" size={14} color="#ffa502" />
+                      <Text style={[styles.playerStat, (player.addons_count || 0) > 0 && styles.activeStat]}>
+                        {player.addons_count || 0} addons
+                      </Text>
+                    </View>
                   </View>
                   <View style={styles.playerActions}>
+                    <TouchableOpacity
+                      style={[styles.actionButton, !canMakeRebuy(currentTournament, clock, player) && styles.disabledButton]}
+                      onPress={() => handleRebuy(player.id, playerName, player)}
+                      disabled={!canMakeRebuy(currentTournament, clock, player)}
+                    >
+                      <Ionicons name="refresh" size={20} color={canMakeRebuy(currentTournament, clock, player) ? "#2ed573" : "#666"} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionButton, !canMakeAddon(currentTournament, clock) && styles.disabledButton]}
+                      onPress={() => handleAddon(player.id, playerName)}
+                      disabled={!canMakeAddon(currentTournament, clock)}
+                    >
+                      <Ionicons name="add-circle" size={20} color={canMakeAddon(currentTournament, clock) ? "#ffa502" : "#666"} />
+                    </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.actionButton}
                       onPress={() => handleAdjustChips(player.id, playerName, player.current_chips)}
                     >
-                      <Ionicons name="create" size={16} color="#ffa502" />
+                      <Ionicons name="create" size={20} color="#ffa502" />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.actionButton}
                       onPress={() => handleEliminatePlayer(player.id, playerName)}
                     >
-                      <Ionicons name="person-remove" size={16} color="#ff4757" />
+                      <Ionicons name="person-remove" size={20} color="#ff4757" />
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.actionButton}
                       onPress={() => handleRemovePlayer(player.id, playerName)}
                     >
-                      <Ionicons name="trash" size={16} color="#666" />
+                      <Ionicons name="trash" size={20} color="#666" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -283,7 +387,7 @@ const PlayerManagementScreen: React.FC = ({ route, navigation }: any) => {
               Jugadores Eliminados ({eliminatedPlayers.length})
             </Text>
             {eliminatedPlayers
-              .sort((a, b) => (a.position || 0) - (b.position || 0))
+              .sort((a, b) => (a.final_position || a.position || 0) - (b.final_position || b.position || 0))
               .map((player) => {
                 const playerName = player.user?.nickname || player.user?.full_name || player.user?.email || 'Jugador';
                 return (
@@ -295,28 +399,64 @@ const PlayerManagementScreen: React.FC = ({ route, navigation }: any) => {
                         </Text>
                       </View>
                       <View style={styles.playerDetails}>
-                        <Text style={[styles.playerName, styles.eliminatedPlayerName]}>
-                          {playerName}
+                        <View style={styles.playerNameRow}>
+                          <Text style={[styles.playerName, styles.eliminatedPlayerName]}>
+                            {playerName}
+                          </Text>
+                          <Ionicons name="person-remove" size={16} color="#ff4757" style={styles.eliminatedIcon} />
+                        </View>
+                        <Text style={styles.eliminatedPlayerChips}>
+                          0 fichas
                         </Text>
                         <Text style={styles.playerPosition}>
-                          Posición #{player.position}
+                          Posición #{player.final_position || player.position}
                         </Text>
                       </View>
                     </View>
                     <View style={styles.playerStats}>
-                      <Text style={styles.playerStat}>
-                        {player.rebuys} rebuys
-                      </Text>
-                      <Text style={styles.playerStat}>
-                        {player.addons} addons
-                      </Text>
+                      <View style={styles.statItem}>
+                        <Ionicons name="refresh" size={14} color="#666" />
+                        <Text style={[styles.playerStat, styles.eliminatedPlayerStat, (player.rebuys_count || 0) > 0 && styles.activeStat]}>
+                          {player.rebuys_count || 0} rebuys
+                        </Text>
+                      </View>
+                      <View style={styles.statItem}>
+                        <Ionicons name="add-circle" size={14} color="#666" />
+                        <Text style={[styles.playerStat, styles.eliminatedPlayerStat, (player.addons_count || 0) > 0 && styles.activeStat]}>
+                          {player.addons_count || 0} addons
+                        </Text>
+                      </View>
                     </View>
                     <View style={styles.playerActions}>
                       <TouchableOpacity
-                        style={styles.actionButton}
-                        onPress={() => handleRemovePlayer(player.id, playerName)}
+                        style={[styles.actionButton, styles.disabledButton]}
+                        disabled={true}
                       >
-                        <Ionicons name="trash" size={16} color="#666" />
+                        <Ionicons name="refresh" size={20} color="#444" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.disabledButton]}
+                        disabled={true}
+                      >
+                        <Ionicons name="add-circle" size={20} color="#444" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.disabledButton]}
+                        disabled={true}
+                      >
+                        <Ionicons name="create" size={20} color="#444" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.disabledButton]}
+                        disabled={true}
+                      >
+                        <Ionicons name="person-remove" size={20} color="#444" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.disabledButton]}
+                        disabled={true}
+                      >
+                        <Ionicons name="trash" size={20} color="#444" />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -348,6 +488,18 @@ const PlayerManagementScreen: React.FC = ({ route, navigation }: any) => {
         onClose={() => setShowPlayerSelectionModal(false)}
         onSelectPlayer={handleSelectPlayer}
         tournamentId={tournamentId}
+      />
+
+      <PlayerEliminationModal
+        visible={showEliminationModal}
+        onClose={() => {
+          setShowEliminationModal(false);
+          setSelectedPlayerForElimination(null);
+        }}
+        onConfirm={handleEliminationConfirm}
+        playerName={selectedPlayerForElimination?.user?.name || ''}
+        totalPlayers={players.length}
+        eliminatedPlayers={players.filter(p => p.is_eliminated).length}
       />
     </LinearGradient>
   );
@@ -548,6 +700,7 @@ const styles = StyleSheet.create({
   },
   eliminatedAvatar: {
     backgroundColor: '#666',
+    opacity: 0.7,
   },
   playerInitial: {
     fontSize: 16,
@@ -557,6 +710,11 @@ const styles = StyleSheet.create({
   playerDetails: {
     flex: 1,
   },
+  playerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   playerName: {
     fontSize: 16,
     fontWeight: 'bold',
@@ -565,10 +723,19 @@ const styles = StyleSheet.create({
   },
   eliminatedPlayerName: {
     color: '#b0b0b0',
+    marginBottom: 0,
+  },
+  eliminatedIcon: {
+    marginLeft: 8,
   },
   playerChips: {
     fontSize: 14,
     color: '#b0b0b0',
+  },
+  eliminatedPlayerChips: {
+    fontSize: 14,
+    color: '#666',
+    textDecorationLine: 'line-through',
   },
   playerPosition: {
     fontSize: 14,
@@ -580,19 +747,39 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   playerStat: {
     fontSize: 12,
     color: '#b0b0b0',
+  },
+  activeStat: {
+    color: '#ffffff',
+    fontWeight: 'bold',
+  },
+  eliminatedPlayerStat: {
+    color: '#666',
+    opacity: 0.8,
   },
   playerActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
   },
   actionButton: {
-    padding: 8,
+    padding: 12,
     marginLeft: 8,
-    borderRadius: 6,
+    borderRadius: 8,
     backgroundColor: '#0c0c0c',
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
   emptyState: {
     alignItems: 'center',

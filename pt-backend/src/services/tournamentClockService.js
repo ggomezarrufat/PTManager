@@ -195,28 +195,43 @@ class TournamentClockService {
       console.log(`   Nivel actual: ${clock.current_level}, Tiempo restante: ${clock.time_remaining_seconds}s`);
       console.log(`   Segundos transcurridos: ${secondsElapsed}s`);
 
+      // Verificar si el tiempo fue ajustado manualmente recientemente (en los últimos 30 segundos)
+      const lastUpdatedTime = new Date(clock.last_updated).getTime();
+      const timeSinceLastUpdate = now.getTime() - lastUpdatedTime;
+      const wasRecentlyAdjusted = timeSinceLastUpdate < 30000; // 30 segundos
+
       // Si el tiempo llegó a cero o menos, cambiar al siguiente nivel
       if (newTimeRemaining <= 0) {
         console.log(`⏰ [AUTO-UPDATE] Tiempo agotado para nivel ${clock.current_level}`);
+        
+        // Solo cambiar de nivel automáticamente si NO fue ajustado manualmente recientemente
+        if (!wasRecentlyAdjusted) {
+          console.log(`🔄 [AUTO-UPDATE] Cambio automático permitido - tiempo no fue ajustado recientemente`);
+          
+          // Calcular el siguiente nivel
+          const nextLevel = clock.current_level + 1;
 
-        // Calcular el siguiente nivel
-        const nextLevel = clock.current_level + 1;
+          if (tournament.blind_structure && tournament.blind_structure.length >= nextLevel) {
+            // Obtener la duración del siguiente nivel
+            const levelData = tournament.blind_structure[nextLevel - 1]; // Array index starts at 0
+            const nextLevelTime = levelData.duration_minutes ? levelData.duration_minutes * 60 : 1200; // 20 minutos por defecto
 
-        if (tournament.blind_structure && tournament.blind_structure.length >= nextLevel) {
-          // Obtener la duración del siguiente nivel
-          const levelData = tournament.blind_structure[nextLevel - 1]; // Array index starts at 0
-          const nextLevelTime = levelData.duration_minutes ? levelData.duration_minutes * 60 : 1200; // 20 minutos por defecto
+            newTimeRemaining = nextLevelTime;
+            newLevel = nextLevel;
+            levelChanged = true;
 
-          newTimeRemaining = nextLevelTime;
-          newLevel = nextLevel;
-          levelChanged = true;
-
-          console.log(`🔄 [AUTO-UPDATE] Cambiando automáticamente a nivel ${newLevel} (${newTimeRemaining}s)`);
+            console.log(`🔄 [AUTO-UPDATE] Cambiando automáticamente a nivel ${newLevel} (${newTimeRemaining}s)`);
+          } else {
+            // No hay más niveles, mantener el último nivel con tiempo 0
+            newTimeRemaining = 0;
+            newLevel = clock.current_level;
+            console.log(`🏁 [AUTO-UPDATE] Torneo completado - no hay más niveles disponibles`);
+          }
         } else {
-          // No hay más niveles, mantener el último nivel con tiempo 0
+          // El tiempo fue ajustado manualmente, mantener en 0 pero no cambiar de nivel
           newTimeRemaining = 0;
           newLevel = clock.current_level;
-          console.log(`🏁 [AUTO-UPDATE] Torneo completado - no hay más niveles disponibles`);
+          console.log(`⏸️ [AUTO-UPDATE] Tiempo ajustado manualmente recientemente - manteniendo nivel actual`);
         }
       } else {
         console.log(`✅ [AUTO-UPDATE] Tiempo restante actualizado: ${newTimeRemaining}s`);

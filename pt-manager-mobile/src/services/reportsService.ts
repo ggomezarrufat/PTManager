@@ -1,18 +1,21 @@
 import { supabase } from '../config/supabase';
 
 const getApiBaseUrl = (): string => {
-  // En desarrollo, usar localhost
-  if (__DEV__) {
-    return 'http://localhost:3001';
-  }
-
-  // En producción, usar variables de entorno
+  // Siempre usar variables de entorno si están disponibles
   const apiUrl = process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_API_BASE_URL;
   if (apiUrl) {
+    console.log('🔧 ReportsService - Usando URL de variables de entorno:', apiUrl);
     return apiUrl;
   }
 
-  // Fallback a la URL hardcodeada
+  // Fallback para desarrollo
+  if (__DEV__) {
+    console.log('🔧 ReportsService - Usando fallback localhost');
+    return 'http://localhost:3001';
+  }
+
+  // Fallback para producción
+  console.log('🔧 ReportsService - Usando fallback producción');
   return 'https://pt-manager.vercel.app';
 };
 

@@ -329,10 +329,17 @@ const userService = {
     }>(`/api/users?${params}`);
   },
 
-  async getAvailableUsersForTournament() {
+  async getAvailableUsersForTournament(search?: string, limit?: number) {
+    const params = new URLSearchParams();
+    if (search) params.append('search', search);
+    if (limit) params.append('limit', limit.toString());
+    
+    const queryString = params.toString();
+    const url = `/api/users/available-for-tournament${queryString ? `?${queryString}` : ''}`;
+    
     return await apiRequest<{
       users: any[];
-    }>('/api/users/available-for-tournament');
+    }>(url);
   },
 
   async createUser(userData: {

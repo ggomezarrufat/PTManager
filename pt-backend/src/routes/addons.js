@@ -278,6 +278,48 @@ router.post('/players/:playerId/addons',
 
 /**
  * @swagger
+ * /api/tournaments/{tournamentId}/addons:
+ *   get:
+ *     summary: Obtener todas los addons de un torneo
+ *     tags: [Addons]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tournamentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del torneo
+ *     responses:
+ *       200:
+ *         description: Lista de addons del torneo obtenida exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 addons:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Addon'
+ *                 tournament:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: string
+ *                       format: uuid
+ *                     name:
+ *                       type: string
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Torneo no encontrado
+ */
+
+/**
+ * @swagger
  * /api/players/{playerId}/addons:
  *   get:
  *     summary: Obtener addons de un jugador específico
@@ -309,6 +351,66 @@ router.post('/players/:playerId/addons',
  *       404:
  *         description: Jugador no encontrado
  */
+// Endpoint para obtener todas los addons de un torneo
+router.get('/tournaments/:tournamentId/addons',
+  authenticateToken,
+  [
+    param('tournamentId').isUUID().withMessage('Tournament ID debe ser un UUID válido')
+  ],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          error: 'Validation Error',
+          message: 'Datos de entrada inválidos',
+          details: errors.array()
+        });
+      }
+
+      const { tournamentId } = req.params;
+
+      // Verificar que el torneo existe
+      const { data: tournament, error: tournamentError } = await supabase
+        .from('tournaments')
+        .select('id, name')
+        .eq('id', tournamentId)
+        .single();
+
+      if (tournamentError || !tournament) {
+        return res.status(404).json({
+          error: 'Tournament Not Found',
+          message: 'Torneo no encontrado'
+        });
+      }
+
+      // Obtener todos los addons del torneo
+      const { data: addons, error } = await supabase
+        .from('addons')
+        .select('*')
+        .eq('tournament_id', tournamentId)
+        .order('timestamp', { ascending: true });
+
+      if (error) {
+        console.error('Error obteniendo addons del torneo:', error);
+        throw error;
+      }
+
+      res.json({
+        message: 'Addons del torneo obtenidos exitosamente',
+        tournament: {
+          id: tournament.id,
+          name: tournament.name
+        },
+        addons: addons || []
+      });
+
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.get('/players/:playerId/addons',
   authenticateToken,
   [

@@ -86,18 +86,29 @@ const router = express.Router();
 router.get('/available-for-tournament', authenticateToken, async (req, res, next) => {
   try {
     const supabase = getSupabaseClient();
+    const { search, limit = 100 } = req.query;
     
-    // Obtener todos los usuarios de la tabla profiles (sin filtros de confirmación de email)
-    const { data: users, error } = await supabase
+    let query = supabase
       .from('profiles')
       .select('id, name, nickname, email, is_admin, created_at')
       .order('name', { ascending: true });
+
+    // Agregar búsqueda si se proporciona
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      query = query.or(`name.ilike.${searchTerm},nickname.ilike.${searchTerm},email.ilike.${searchTerm}`);
+    }
+
+    // Limitar resultados para evitar problemas de rendimiento
+    query = query.limit(parseInt(limit) || 100);
+
+    const { data: users, error } = await query;
 
     if (error) {
       throw error;
     }
 
-    console.log(`📋 Usuarios disponibles para torneo: ${users?.length || 0} usuarios obtenidos`);
+    console.log(`📋 Usuarios disponibles para torneo: ${users?.length || 0} usuarios obtenidos${search ? ` (búsqueda: "${search}")` : ''}`);
 
     res.json({
       users: users || []

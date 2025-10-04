@@ -176,31 +176,41 @@ const CreateTournament: React.FC = () => {
         
         const importData = JSON.parse(content);
 
-        // Validar que el archivo tenga la estructura correcta
-        if (!importData.blind_structure || !Array.isArray(importData.blind_structure)) {
-          setError('El archivo no contiene una estructura de blinds válida');
+        // Determinar la estructura de blinds
+        let blindStructure: any[] = [];
+        
+        // Verificar si es el formato de la web (con blind_structure)
+        if (importData.blind_structure && Array.isArray(importData.blind_structure)) {
+          blindStructure = importData.blind_structure;
+        } 
+        // Verificar si es un array directo
+        else if (Array.isArray(importData)) {
+          blindStructure = importData;
+        } else {
+          setError('El archivo debe contener un array de niveles o un objeto con blind_structure');
           return;
         }
 
         // Validar cada nivel de blind
-        for (let i = 0; i < importData.blind_structure.length; i++) {
-          const level = importData.blind_structure[i];
+        for (let i = 0; i < blindStructure.length; i++) {
+          const level = blindStructure[i];
           
           // Validar que existan los campos requeridos
-          if (!level.level || !level.small_blind || !level.big_blind || !level.duration_minutes) {
-            setError(`Nivel ${i + 1}: Faltan campos obligatorios (level, small_blind, big_blind, duration_minutes)`);
+          const durationValue = level.duration_minutes || level.duration;
+          if (!level.level || !level.small_blind || !level.big_blind || !durationValue) {
+            setError(`Nivel ${i + 1}: Faltan campos obligatorios (level, small_blind, big_blind, duration/duration_minutes)`);
             return;
           }
           
           // Validar que los valores sean números válidos
           if (isNaN(Number(level.level)) || isNaN(Number(level.small_blind)) || 
-              isNaN(Number(level.big_blind)) || isNaN(Number(level.duration_minutes))) {
+              isNaN(Number(level.big_blind)) || isNaN(Number(durationValue))) {
             setError(`Nivel ${i + 1}: Los valores deben ser números válidos`);
             return;
           }
           
           // Validar que los valores sean positivos
-          if (level.small_blind <= 0 || level.big_blind <= 0 || level.duration_minutes <= 0) {
+          if (level.small_blind <= 0 || level.big_blind <= 0 || durationValue <= 0) {
             setError(`Nivel ${i + 1}: Los valores deben ser mayores que cero`);
             return;
           }
@@ -212,8 +222,19 @@ const CreateTournament: React.FC = () => {
           }
         }
 
+        // Convertir la estructura al formato esperado por la web
+        const convertedStructure = blindStructure.map(level => ({
+          level: level.level,
+          small_blind: level.small_blind,
+          big_blind: level.big_blind,
+          duration_minutes: level.duration_minutes || level.duration,
+          antes: level.antes || 0,
+          is_pause: level.is_break || level.is_pause || false,
+          addons_allowed: level.addons_allowed || false
+        }));
+
         // Aplicar la estructura importada
-        setBlindStructure(importData.blind_structure);
+        setBlindStructure(convertedStructure);
 
         // Aplicar sistema de puntos si está disponible
         if (importData.point_system && Array.isArray(importData.point_system)) {
@@ -229,7 +250,7 @@ const CreateTournament: React.FC = () => {
           if (importData.tournament_config.last_level_rebuy) setLastLevelRebuy(importData.tournament_config.last_level_rebuy);
         }
 
-        setSuccess(`Estructura de blinds importada exitosamente (${importData.blind_structure.length} niveles)`);
+        setSuccess(`Estructura de blinds importada exitosamente (${blindStructure.length} niveles)`);
         
         // Limpiar el input file
         if (fileInputRef.current) {

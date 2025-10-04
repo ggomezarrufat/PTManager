@@ -25,9 +25,10 @@ interface TournamentManagementScreenProps {
 
 const TournamentManagementScreen: React.FC<TournamentManagementScreenProps> = ({ navigation, route }) => {
   const { user } = useAuthStore();
-  const { currentTournament, players, loading, loadTournament, loadPlayers, deleteTournament, startTournament } = useTournamentStore();
+  const { currentTournament, players, loading, loadTournament, loadPlayers, deleteTournament, startTournament, finishTournament } = useTournamentStore();
   const [isDeleting, setIsDeleting] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
+  const [isFinishing, setIsFinishing] = useState(false);
 
   const { tournamentId } = route.params;
 
@@ -130,9 +131,61 @@ const TournamentManagementScreen: React.FC<TournamentManagementScreenProps> = ({
     }
   };
 
+  const handleFinishTournament = async () => {
+    if (!currentTournament) return;
+
+    Alert.alert(
+      'Finalizar Torneo',
+      `¿Estás seguro de que quieres finalizar el torneo "${currentTournament.name}"?\n\nEsta acción no se puede deshacer y pausará automáticamente el reloj del torneo.`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Finalizar',
+          style: 'destructive',
+          onPress: confirmFinish,
+        },
+      ]
+    );
+  };
+
+  const confirmFinish = async () => {
+    if (!currentTournament) return;
+
+    setIsFinishing(true);
+    try {
+      await finishTournament(currentTournament.id);
+      
+      // Recargar el torneo para actualizar el estado
+      await loadTournament(tournamentId);
+      
+      Alert.alert(
+        'Torneo Finalizado',
+        'El torneo ha sido finalizado exitosamente.',
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo finalizar el torneo. Inténtalo nuevamente.');
+    } finally {
+      setIsFinishing(false);
+    }
+  };
+
   const canDeleteTournament = () => {
     if (!currentTournament) return false;
     return currentTournament.status === 'scheduled' || currentTournament.status === 'finished';
+  };
+
+  const canFinishTournament = () => {
+    if (!currentTournament) return false;
+    return currentTournament.status === 'active' || currentTournament.status === 'paused';
   };
 
   const formatDate = (dateString: string) => {
@@ -315,6 +368,24 @@ const TournamentManagementScreen: React.FC<TournamentManagementScreenProps> = ({
             </TouchableOpacity>
           )}
 
+          {/* Finalizar Torneo */}
+          {canFinishTournament() && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.finishButton]}
+              onPress={handleFinishTournament}
+              disabled={isFinishing}
+            >
+              {isFinishing ? (
+                <ActivityIndicator color="#ffffff" size="small" />
+              ) : (
+                <Ionicons name="flag" size={20} color="#ffffff" />
+              )}
+              <Text style={styles.actionButtonText}>
+                {isFinishing ? 'Finalizando...' : 'Finalizar Torneo'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {/* Eliminar Torneo */}
           {canDeleteTournament() && (
             <TouchableOpacity
@@ -346,7 +417,7 @@ const TournamentManagementScreen: React.FC<TournamentManagementScreenProps> = ({
           {currentTournament.status === 'active' && (
             <TouchableOpacity
               style={[styles.actionButton, styles.primaryButton]}
-              onPress={() => navigation.navigate('Clock')}
+              onPress={() => navigation.navigate('Clock', { tournamentId })}
             >
               <Ionicons name="time" size={20} color="#ffffff" />
               <Text style={styles.actionButtonText}>Reloj del Torneo</Text>
@@ -530,6 +601,11 @@ const styles = StyleSheet.create({
   },
   startButton: {
     backgroundColor: '#2ed573',
+  },
+  finishButton: {
+    backgroundColor: '#e74c3c',
+    borderWidth: 2,
+    borderColor: '#c0392b',
   },
   deleteButton: {
     backgroundColor: '#ff4757',

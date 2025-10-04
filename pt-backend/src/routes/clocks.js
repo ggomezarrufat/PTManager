@@ -405,22 +405,24 @@ router.get('/tournaments/:tournamentId/clock',
       }
 
       const { tournamentId } = req.params;
+      console.log('🕐 Backend: Obteniendo reloj para torneo:', tournamentId);
 
-      const { data: clock, error } = await supabase
-        .from('tournament_clocks')
-        .select('*')
-        .eq('tournament_id', tournamentId)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { // PGRST116 = No rows returned
-        console.error('Error obteniendo reloj:', error);
-        throw error;
+      try {
+        // Usar la función que crea automáticamente el reloj si no existe
+        const clock = await getOrCreateTournamentClock(tournamentId);
+        console.log('✅ Backend: Reloj obtenido/creado:', clock ? 'Presente' : 'Faltante');
+        
+        res.json({
+          message: 'Reloj obtenido exitosamente',
+          clock: clock
+        });
+      } catch (error) {
+        console.error('❌ Backend: Error obteniendo/creando reloj:', error);
+        res.json({
+          message: 'Reloj no encontrado',
+          clock: null
+        });
       }
-
-      res.json({
-        message: clock ? 'Reloj obtenido exitosamente' : 'Reloj no encontrado',
-        clock: clock || null
-      });
 
     } catch (error) {
       next(error);
@@ -556,18 +558,14 @@ router.put('/tournaments/:tournamentId/clock/toggle-pause',
       }
 
       const { tournamentId } = req.params;
+      console.log('⏸️ Backend: Toggle pause para torneo:', tournamentId);
 
-      // Obtener reloj actual
-      const { data: clock, error: clockError } = await supabase
-        .from('tournament_clocks')
-        .select('*')
-        .eq('tournament_id', tournamentId)
-        .single();
-
-      if (clockError || !clock) {
+      // Usar la función que crea automáticamente el reloj si no existe
+      const clock = await getOrCreateTournamentClock(tournamentId);
+      if (!clock) {
         return res.status(404).json({
           error: 'Clock Not Found',
-          message: 'Reloj del torneo no encontrado'
+          message: 'No se pudo crear o encontrar el reloj del torneo'
         });
       }
 
@@ -1344,12 +1342,14 @@ router.post('/clock/adjust',
       // Obtener o crear el reloj del torneo
       const clock = await getOrCreateTournamentClock(tournamentId);
 
-      // Actualizar tiempo del reloj
+      // Actualizar tiempo del reloj y reiniciar estado
       const { error } = await supabaseAdmin
         .from('tournament_clocks')
         .update({
           time_remaining_seconds: newSeconds,
-          last_updated: new Date().toISOString()
+          is_paused: false, // Asegurar que no esté pausado
+          last_updated: new Date().toISOString(),
+          paused_at: null // Limpiar timestamp de pausa
         })
         .eq('tournament_id', tournamentId);
 
@@ -1369,6 +1369,135 @@ router.post('/clock/adjust',
 
     } catch (error) {
       console.error('Error en adjust-time:', error);
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/tournaments/{tournamentId}/finish:
+ *   post:
+ *     summary: Finalizar un torneo
+ *     tags: [Reloj]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tournamentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del torneo a finalizar
+ *     responses:
+ *       200:
+ *         description: Torneo finalizado exitosamente
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       403:
+ *         description: No autorizado (solo administradores)
+ *       404:
+ *         description: Torneo no encontrado
+ */
+router.post('/tournaments/:tournamentId/finish',
+  authenticateToken,
+  [param('tournamentId').isUUID().withMessage('Tournament ID debe ser un UUID válido')],
+  async (req, res, next) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ 
+          error: 'Datos de entrada inválidos', 
+          details: errors.array() 
+        });
+      }
+
+      const { tournamentId } = req.params;
+      const userId = req.user.userId;
+
+      console.log(`🏁 Finalizando torneo: ${tournamentId} por usuario: ${userId}`);
+
+      // Verificar que el usuario es administrador
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('is_admin')
+        .eq('id', userId)
+        .single();
+
+      if (userError || !user) {
+        console.error('❌ Error obteniendo datos del usuario:', userError);
+        return res.status(404).json({ error: 'Usuario no encontrado' });
+      }
+
+      if (!user.is_admin) {
+        console.log('❌ Usuario no es administrador, acceso denegado');
+        return res.status(403).json({ error: 'Solo los administradores pueden finalizar torneos' });
+      }
+
+      // Verificar que el torneo existe
+      const { data: tournament, error: tournamentError } = await supabase
+        .from('tournaments')
+        .select('id, name, status')
+        .eq('id', tournamentId)
+        .single();
+
+      if (tournamentError || !tournament) {
+        console.error('❌ Torneo no encontrado:', tournamentError);
+        return res.status(404).json({ error: 'Torneo no encontrado' });
+      }
+
+      // Verificar que el torneo no esté ya finalizado
+      if (tournament.status === 'finished') {
+        return res.status(400).json({ error: 'El torneo ya está finalizado' });
+      }
+
+      // Finalizar el torneo
+      const { error: updateError } = await supabase
+        .from('tournaments')
+        .update({ 
+          status: 'finished',
+          finished_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', tournamentId);
+
+      if (updateError) {
+        console.error('❌ Error finalizando torneo:', updateError);
+        throw updateError;
+      }
+
+      // Pausar el reloj del torneo
+      const { error: clockError } = await supabaseAdmin
+        .from('tournament_clocks')
+        .update({
+          is_paused: true,
+          paused_at: new Date().toISOString(),
+          last_updated: new Date().toISOString()
+        })
+        .eq('tournament_id', tournamentId);
+
+      if (clockError) {
+        console.error('⚠️ Error pausando reloj (no crítico):', clockError);
+      }
+
+      console.log(`✅ Torneo ${tournament.name} finalizado exitosamente`);
+
+      res.status(200).json({
+        success: true,
+        message: 'Torneo finalizado exitosamente',
+        tournament: {
+          id: tournament.id,
+          name: tournament.name,
+          status: 'finished',
+          finished_at: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      console.error('Error finalizando torneo:', error);
       next(error);
     }
   }

@@ -28,6 +28,5 @@
       "runtime": "nodejs18.x",
       "maxDuration": 30
     }
-  },
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./pt-manager-mobile/"
+  }
 }

@@ -16,6 +16,17 @@
       "destination": "/api/index.js"
     }
   ],
+  "headers": [
+    {
+      "source": "/favicon.ico",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        }
+      ]
+    }
+  ],
   "env": {
     "NODE_ENV": "production"
   }

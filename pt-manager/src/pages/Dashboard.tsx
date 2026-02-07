@@ -38,7 +38,7 @@ import { Tournament } from '../types';
 import { getUserDisplayName } from '../utils/userUtils';
 import { format } from 'date-fns';
 import ImageCarousel from '../components/ui/ImageCarousel';
-import { reportsService, playerService } from '../services/apiService';
+import { reportsService, playerService, seasonService } from '../services/apiService';
 
 const Dashboard: React.FC = () => {
   
@@ -61,6 +61,7 @@ const Dashboard: React.FC = () => {
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [leaderboardLoading, setLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string | null>(null);
+  const [noActiveSeason, setNoActiveSeason] = useState(false);
   
   // Estado para el modal de jugadores
   const [playersModalOpen, setPlayersModalOpen] = useState(false);
@@ -84,8 +85,14 @@ const Dashboard: React.FC = () => {
     try {
       setLeaderboardLoading(true);
       setLeaderboardError(null);
-      const currentSeason = String(new Date().getFullYear());
-      const response = await reportsService.getLeaderboard(currentSeason);
+      setNoActiveSeason(false);
+      const { season: activeSeason } = await seasonService.getActiveSeason();
+      if (!activeSeason) {
+        setNoActiveSeason(true);
+        setLeaderboard([]);
+        return;
+      }
+      const response = await reportsService.getLeaderboard(String(activeSeason.id));
       setLeaderboard(response.leaderboard || []);
     } catch (err) {
       console.error('❌ Dashboard: Error cargando leaderboard:', err);
@@ -381,7 +388,11 @@ const Dashboard: React.FC = () => {
             ) : leaderboardError ? (
               <Alert severity="error">{leaderboardError}</Alert>
             ) : leaderboard.length === 0 ? (
-              <Alert severity="info">No hay datos para la tabla de posiciones aún. Los puntos se mostrarán después de jugar torneos.</Alert>
+              <Alert severity="info">
+                {noActiveSeason
+                  ? 'No hay temporada activa. La tabla mostrará los puntos cuando la fecha actual esté dentro del rango de una temporada.'
+                  : 'No hay datos para la tabla de posiciones aún. Los puntos se mostrarán después de jugar torneos.'}
+              </Alert>
             ) : (
               <TableContainer component={Paper} variant="outlined">
                 <Table stickyHeader>

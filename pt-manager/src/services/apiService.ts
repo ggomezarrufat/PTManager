@@ -66,8 +66,22 @@ async function apiRequest<T>(
         // Log compacto y claro (deshabilitado en producción)
       }
 
-      let response = await fetch(`${API_BASE_URL}${endpoint}`, config);
+      const fetchUrl = `${API_BASE_URL}${endpoint}`;
+      const method_debug = (config.method || 'GET').toString().toUpperCase();
+      if (method_debug !== 'GET') {
+        console.log(`🔵 [FRONTEND] ${method_debug} ${fetchUrl}`, { hasToken: !!token });
+      }
+
+      let response = await fetch(fetchUrl, config);
       
+      if (method_debug !== 'GET') {
+        console.log(`🔵 [FRONTEND] Response: ${response.status} ${response.statusText} for ${method_debug} ${fetchUrl}`, {
+          responseUrl: response.url,
+          redirected: response.redirected,
+          type: response.type,
+        });
+      }
+
       if (!response.ok) {
         // Intentar refresh en 401 y reintentar una vez
         if (response.status === 401 && !(options as any)._retried) {
@@ -104,9 +118,9 @@ async function apiRequest<T>(
           errorMessage = errorData.message || errorMessage;
         } catch {
           // Si no puede parsear JSON, usar el mensaje por defecto
-        }
-        if (response.status === 404) {
-          errorMessage = `No se encontró la ruta en el backend (${API_BASE_URL}${endpoint}). Verifica REACT_APP_API_URL y que la API esté corriendo.`;
+          if (response.status === 404) {
+            errorMessage = `No se encontró la ruta en el backend (${API_BASE_URL}${endpoint}). Verifica REACT_APP_API_URL y que la API esté corriendo.`;
+          }
         }
         if (endpoint === '/api/tournaments' && method === 'POST') {
           console.error('🛑 API Error (Create Tournament):', {
@@ -707,6 +721,10 @@ const seasonService = {
 
   async getSeason(id: number) {
     return await apiRequest<any>(`/api/seasons/${id}`);
+  },
+
+  async getActiveSeason() {
+    return await apiRequest<{ season: { id: number; name: string; start_date: string; end_date: string } | null }>('/api/seasons/active');
   },
 
   async createSeason(data: { name: string; start_date: string; end_date: string }) {

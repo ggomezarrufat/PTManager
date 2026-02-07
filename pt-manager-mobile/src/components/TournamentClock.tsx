@@ -589,7 +589,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   timeText: {
-    fontSize: 72,
+    fontSize: 144,
     fontWeight: 'bold',
     color: '#2ed573',
     textShadowColor: 'rgba(46, 213, 115, 0.3)',
@@ -598,7 +598,7 @@ const styles = StyleSheet.create({
   },
   timeWarning: {
     color: '#ff4757',
-    fontSize: 80,
+    fontSize: 160,
     textShadowColor: 'rgba(255, 71, 87, 0.5)',
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 10,

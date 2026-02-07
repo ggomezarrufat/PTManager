@@ -1,7 +1,7 @@
 const express = require('express');
 const { body, param, validationResult } = require('express-validator');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
-const { supabase } = require('../config/supabase');
+const { supabase, supabaseAdmin } = require('../config/supabase');
 const router = express.Router();
 
 /**
@@ -38,11 +38,6 @@ const router = express.Router();
  *         description: No autenticado
  *       404:
  *         description: Torneo no encontrado
- */
-
-/**
- * @swagger
- * /api/tournaments/{tournamentId}/players:
  *   post:
  *     summary: Agregar jugador a un torneo
  *     tags: [Jugadores]
@@ -55,6 +50,7 @@ const router = express.Router();
  *         schema:
  *           type: string
  *           format: uuid
+ *         description: ID del torneo
  *     requestBody:
  *       required: true
  *       content:
@@ -63,11 +59,18 @@ const router = express.Router();
  *             type: object
  *             required:
  *               - user_id
+ *               - entry_fee_paid
  *             properties:
  *               user_id:
  *                 type: string
  *                 format: uuid
  *                 description: ID del usuario a agregar
+ *               entry_fee_paid:
+ *                 type: number
+ *                 description: Entry fee pagado por el jugador
+ *               initial_chips:
+ *                 type: integer
+ *                 description: Fichas iniciales del jugador
  *     responses:
  *       201:
  *         description: Jugador agregado exitosamente
@@ -83,9 +86,9 @@ const router = express.Router();
 
 /**
  * @swagger
- * /api/players/{playerId}/remove:
+ * /api/players/{playerId}:
  *   delete:
- *     summary: Remover jugador de un torneo
+ *     summary: Desregistrar jugador del torneo (eliminar inscripción)
  *     tags: [Jugadores]
  *     security:
  *       - bearerAuth: []
@@ -96,9 +99,44 @@ const router = express.Router();
  *         schema:
  *           type: string
  *           format: uuid
+ *         description: ID del jugador
  *     responses:
  *       200:
- *         description: Jugador removido exitosamente
+ *         description: Jugador desregistrado exitosamente
+ *       401:
+ *         description: No autenticado
+ *       404:
+ *         description: Jugador no encontrado
+ */
+
+/**
+ * @swagger
+ * /api/players/{playerId}/check:
+ *   get:
+ *     summary: Verificar si un jugador existe
+ *     tags: [Jugadores]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: playerId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del jugador
+ *     responses:
+ *       200:
+ *         description: Jugador encontrado
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 player:
+ *                   $ref: '#/components/schemas/TournamentPlayer'
  *       401:
  *         description: No autenticado
  *       404:
@@ -109,7 +147,8 @@ const router = express.Router();
  * @swagger
  * /api/players/{playerId}/eliminate:
  *   put:
- *     summary: Eliminar jugador del torneo
+ *     summary: Eliminar jugador del torneo con cálculo automático de posición y puntos
+ *     description: Marca al jugador como eliminado. Calcula automáticamente posición y puntos si no se proporcionan. Solo administradores.
  *     tags: [Jugadores]
  *     security:
  *       - bearerAuth: []
@@ -120,6 +159,7 @@ const router = express.Router();
  *         schema:
  *           type: string
  *           format: uuid
+ *         description: ID del jugador
  *     requestBody:
  *       required: true
  *       content:
@@ -127,12 +167,20 @@ const router = express.Router();
  *           schema:
  *             type: object
  *             required:
- *               - position
+ *               - tournament_id
  *             properties:
- *               position:
+ *               tournament_id:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del torneo (requerido para validación)
+ *               final_position:
  *                 type: integer
  *                 minimum: 1
- *                 description: Posición final del jugador
+ *                 description: Posición final (opcional, se calcula automáticamente)
+ *               points_earned:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: Puntos obtenidos (opcional, se calcula automáticamente)
  *               eliminated_by:
  *                 type: string
  *                 format: uuid
@@ -140,60 +188,47 @@ const router = express.Router();
  *     responses:
  *       200:
  *         description: Jugador eliminado exitosamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Jugador eliminado exitosamente
+ *                 player:
+ *                   $ref: '#/components/schemas/TournamentPlayer'
+ *                 calculated_values:
+ *                   type: object
+ *                   properties:
+ *                     calculated_position:
+ *                       type: integer
+ *                       description: Posición calculada automáticamente
+ *                     calculated_points:
+ *                       type: integer
+ *                       description: Puntos calculados automáticamente
+ *                     total_players:
+ *                       type: integer
+ *                       description: Total de jugadores en el torneo
+ *                     eliminated_count:
+ *                       type: integer
+ *                       description: Cantidad de jugadores ya eliminados
  *       400:
- *         description: Datos inválidos
+ *         description: Datos inválidos o jugador ya eliminado
  *       401:
  *         description: No autenticado
+ *       403:
+ *         description: Solo administradores pueden eliminar jugadores
  *       404:
- *         description: Jugador no encontrado
- */
-
-/**
- * @swagger
- * /api/players/{playerId}/confirm-registration:
- *   put:
- *     summary: Confirmar registro de jugador
- *     tags: [Jugadores]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: playerId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               initial_chips:
- *                 type: integer
- *                 minimum: 1
- *                 description: Fichas iniciales del jugador
- *               admin_user_id:
- *                 type: string
- *                 format: uuid
- *                 description: ID del administrador que confirma
- *     responses:
- *       200:
- *         description: Registro confirmado exitosamente
- *       400:
- *         description: Datos inválidos
- *       401:
- *         description: No autenticado
- *       404:
- *         description: Jugador no encontrado
+ *         description: Jugador no encontrado en el torneo especificado
  */
 
 /**
  * @swagger
  * /api/players/{playerId}/results:
  *   put:
- *     summary: Actualizar resultados finales del jugador
+ *     summary: Actualizar resultados de un jugador (posición final y puntos)
+ *     description: Actualiza posición final y/o puntos. Si se establece posición final, el jugador se marca como eliminado. Solo administradores.
  *     tags: [Jugadores]
  *     security:
  *       - bearerAuth: []
@@ -204,6 +239,7 @@ const router = express.Router();
  *         schema:
  *           type: string
  *           format: uuid
+ *         description: ID del jugador
  *     requestBody:
  *       required: true
  *       content:
@@ -211,14 +247,14 @@ const router = express.Router();
  *           schema:
  *             type: object
  *             properties:
- *               points_earned:
- *                 type: integer
- *                 minimum: 0
- *                 description: Puntos ganados por el jugador
  *               final_position:
  *                 type: integer
  *                 minimum: 1
  *                 description: Posición final en el torneo
+ *               points_earned:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: Puntos ganados por el jugador
  *     responses:
  *       200:
  *         description: Resultados actualizados exitosamente
@@ -226,15 +262,77 @@ const router = express.Router();
  *         description: Datos inválidos
  *       401:
  *         description: No autenticado
+ *       403:
+ *         description: Solo administradores
  *       404:
  *         description: Jugador no encontrado
  */
 
 /**
  * @swagger
+ * /api/tournaments/{tournamentId}/results:
+ *   put:
+ *     summary: Actualizar en bloque resultados de un torneo finalizado
+ *     description: Permite actualizar posición y puntos de múltiples jugadores a la vez. Solo administradores.
+ *     tags: [Jugadores]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: tournamentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del torneo
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - results
+ *             properties:
+ *               results:
+ *                 type: array
+ *                 minItems: 1
+ *                 items:
+ *                   type: object
+ *                   required:
+ *                     - player_id
+ *                   properties:
+ *                     player_id:
+ *                       type: string
+ *                       format: uuid
+ *                       description: ID del jugador
+ *                     final_position:
+ *                       type: integer
+ *                       minimum: 1
+ *                       description: Posición final del jugador
+ *                     points_earned:
+ *                       type: integer
+ *                       minimum: 0
+ *                       description: Puntos ganados
+ *     responses:
+ *       200:
+ *         description: Resultados actualizados exitosamente
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       403:
+ *         description: Solo administradores
+ *       404:
+ *         description: Torneo no encontrado
+ */
+
+/**
+ * @swagger
  * /api/players/{playerId}/chips:
  *   put:
- *     summary: Actualizar fichas del jugador
+ *     summary: Actualizar fichas de un jugador
+ *     description: Establece la cantidad de fichas actuales del jugador. Solo administradores.
  *     tags: [Jugadores]
  *     security:
  *       - bearerAuth: []
@@ -245,6 +343,7 @@ const router = express.Router();
  *         schema:
  *           type: string
  *           format: uuid
+ *         description: ID del jugador
  *     requestBody:
  *       required: true
  *       content:
@@ -252,9 +351,9 @@ const router = express.Router();
  *           schema:
  *             type: object
  *             required:
- *               - new_chips
+ *               - current_chips
  *             properties:
- *               new_chips:
+ *               current_chips:
  *                 type: integer
  *                 minimum: 0
  *                 description: Nueva cantidad de fichas
@@ -265,6 +364,109 @@ const router = express.Router();
  *         description: Datos inválidos
  *       401:
  *         description: No autenticado
+ *       403:
+ *         description: Solo administradores
+ *       404:
+ *         description: Jugador no encontrado
+ */
+
+/**
+ * @swagger
+ * /api/players/{playerId}/position-points:
+ *   put:
+ *     summary: Actualizar posición y puntos de un jugador en torneo finalizado
+ *     description: Permite editar posición final y puntos de un jugador en un torneo que ya terminó. Solo administradores.
+ *     tags: [Jugadores]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: playerId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del jugador
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - final_position
+ *               - points_earned
+ *               - updated_by
+ *             properties:
+ *               final_position:
+ *                 type: integer
+ *                 minimum: 1
+ *                 description: Posición final del jugador
+ *               points_earned:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: Puntos ganados
+ *               updated_by:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del administrador que actualiza
+ *     responses:
+ *       200:
+ *         description: Posición y puntos actualizados exitosamente
+ *       400:
+ *         description: Datos inválidos o torneo no finalizado
+ *       401:
+ *         description: No autenticado
+ *       403:
+ *         description: Solo administradores
+ *       404:
+ *         description: Jugador o torneo no encontrado
+ */
+
+/**
+ * @swagger
+ * /api/players/{playerId}/confirm-registration:
+ *   put:
+ *     summary: Confirmar inscripción de un jugador
+ *     description: Confirma la inscripción asignando fichas iniciales y activando al jugador. Solo administradores.
+ *     tags: [Jugadores]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: playerId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: ID del jugador
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - initial_chips
+ *               - admin_user_id
+ *             properties:
+ *               initial_chips:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: Fichas iniciales del jugador
+ *               admin_user_id:
+ *                 type: string
+ *                 format: uuid
+ *                 description: ID del administrador que confirma
+ *     responses:
+ *       200:
+ *         description: Inscripción confirmada exitosamente
+ *       400:
+ *         description: Datos inválidos
+ *       401:
+ *         description: No autenticado
+ *       403:
+ *         description: Solo administradores
  *       404:
  *         description: Jugador no encontrado
  */
@@ -382,24 +584,6 @@ router.get('/tournaments/:tournamentId/players',
   }
 );
 
-/**
- * @swagger
- * /api/players/{playerId}:
- *   delete:
- *     summary: Desregistrar jugador del torneo (eliminar inscripción)
- *     tags: [Players]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: playerId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Jugador desregistrado
- */
 router.delete('/players/:playerId',
   authenticateToken,
   [
@@ -454,38 +638,6 @@ router.delete('/players/:playerId',
   }
 );
 
-/**
- * @swagger
- * /api/tournaments/{tournamentId}/players:
- *   post:
- *     summary: Agregar jugador a un torneo
- *     tags: [Players]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: tournamentId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - user_id
- *               - entry_fee_paid
- *             properties:
- *               user_id:
- *                 type: string
- *               entry_fee_paid:
- *                 type: number
- *     responses:
- *       201:
- *         description: Jugador agregado exitosamente
- */
 router.post('/tournaments/:tournamentId/players',
   authenticateToken,
   [
@@ -578,26 +730,6 @@ router.post('/tournaments/:tournamentId/players',
   }
 );
 
-/**
- * @swagger
- * /api/players/{playerId}/check:
- *   get:
- *     summary: Verificar si un jugador existe
- *     tags: [Players]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: playerId
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: Jugador encontrado
- *       404:
- *         description: Jugador no encontrado
- */
 router.get('/players/:playerId/check',
   authenticateToken,
   [
@@ -640,132 +772,7 @@ router.get('/players/:playerId/check',
   }
 );
 
-/**
- * @swagger
- * /api/players/{playerId}/eliminate:
- *   put:
- *     summary: Eliminar jugador del torneo con cálculo automático de posición y puntos
- *     tags: [Players]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: playerId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: false
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               tournament_id:
- *                 type: string
- *                 format: uuid
- *                 description: ID del torneo (requerido para validación)
- *               final_position:
- *                 type: number
- *                 description: Posición final (opcional, se calcula automáticamente)
- *               points_earned:
- *                 type: number
- *                 description: Puntos obtenidos (opcional, se calcula automáticamente)
- *               eliminated_by:
- *                 type: string
- *                 format: uuid
- *                 description: ID del administrador que elimina al jugador
- *     responses:
- *       200:
- *         description: Jugador eliminado exitosamente
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Jugador eliminado exitosamente"
- *                 player:
- *                   $ref: '#/components/schemas/TournamentPlayer'
- *                 calculated_values:
- *                   type: object
- *                   properties:
- *                     calculated_position:
- *                       type: number
- *                       description: Posición calculada automáticamente
- *                     calculated_points:
- *                       type: number
- *                       description: Puntos calculados automáticamente
- *                     total_players:
- *                       type: number
- *                       description: Total de jugadores en el torneo
- *                     eliminated_count:
- *                       type: number
- *                       description: Cantidad de jugadores ya eliminados
- *       400:
- *         description: Error de validación o datos inválidos
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "Datos de entrada inválidos"
- *                 message:
- *                   type: string
- *                   example: "Tournament ID debe ser un UUID válido"
- *                 details:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       field:
- *                         type: string
- *                       message:
- *                         type: string
- *       403:
- *         description: Acceso denegado - solo administradores
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "Forbidden"
- *                 message:
- *                   type: string
- *                   example: "Solo los administradores pueden eliminar jugadores"
- *       404:
- *         description: Jugador no encontrado o no pertenece al torneo especificado
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "Player not found"
- *                 message:
- *                   type: string
- *                   example: "Jugador no encontrado en el torneo especificado"
- *       409:
- *         description: El jugador ya está eliminado
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   example: "Conflict"
- *                 message:
- *                   type: string
- *                   example: "El jugador ya está eliminado del torneo"
- */
-router.put('/players/:playerId/eliminate',
+const eliminatePlayerHandler = [
   authenticateToken,
   [
     param('playerId').isUUID().withMessage('Player ID debe ser un UUID válido'),
@@ -812,23 +819,82 @@ router.put('/players/:playerId/eliminate',
         });
       }
 
-      // Obtener información del jugador para calcular valores automáticamente
-      const { data: playerData, error: playerError } = await supabase
+      // Diagnóstico: buscar con ambos clientes para detectar si es RLS
+      const dbClient = supabaseAdmin || supabase;
+      const { data: playerData, error: playerError } = await dbClient
         .from('tournament_players')
-        .select('tournament_id, final_position')
+        .select('id, user_id, tournament_id, final_position')
         .eq('id', playerId)
-        .eq('tournament_id', tournament_id) // Validar que el jugador pertenece al torneo correcto
-        .single();
+        .eq('tournament_id', tournament_id)
+        .maybeSingle();
 
-      if (playerError || !playerData) {
-        return res.status(404).json({
-          error: 'Player not found',
-          message: 'Jugador no encontrado en el torneo especificado'
+      // Si no se encuentra por id, intentar por user_id
+      let resolvedPlayer = playerData;
+      let usedUserIdFallback = false;
+      if (!playerData && !playerError) {
+        const { data: byUserId } = await dbClient
+          .from('tournament_players')
+          .select('id, user_id, tournament_id, final_position')
+          .eq('user_id', playerId)
+          .eq('tournament_id', tournament_id)
+          .maybeSingle();
+
+        console.log('🔍 Búsqueda por id falló, buscando por user_id:', {
+          playerId,
+          tournament_id,
+          foundById: false,
+          foundByUserId: !!byUserId,
+          result: byUserId ? { id: byUserId.id, user_id: byUserId.user_id } : null
+        });
+
+        if (byUserId) {
+          resolvedPlayer = byUserId;
+          usedUserIdFallback = true;
+        }
+      } else {
+        console.log('🔍 Resultado búsqueda jugador por id:', {
+          playerId,
+          tournament_id,
+          found: !!playerData,
+          error: playerError?.message || null
         });
       }
 
+      if (playerError) {
+        console.error('❌ Error en consulta de jugador:', playerError);
+        return res.status(500).json({
+          error: 'Database Error',
+          message: 'Error al consultar el jugador en la base de datos',
+          details: playerError.message
+        });
+      }
+
+      if (!resolvedPlayer) {
+        // Listar todos los jugadores del torneo para diagnóstico
+        const { data: allPlayers } = await dbClient
+          .from('tournament_players')
+          .select('id, user_id')
+          .eq('tournament_id', tournament_id)
+          .limit(20);
+
+        console.log('❌ Jugador no encontrado. Jugadores en el torneo:', {
+          playerId,
+          tournament_id,
+          totalInTournament: allPlayers?.length || 0,
+          players: allPlayers?.map(p => ({ id: p.id, user_id: p.user_id })) || []
+        });
+
+        return res.status(404).json({
+          error: 'Player not found',
+          message: `Jugador ${playerId} no encontrado en el torneo ${tournament_id}`
+        });
+      }
+
+      // Si se usó fallback por user_id, actualizar playerId para las queries subsiguientes
+      const resolvedPlayerId = usedUserIdFallback ? resolvedPlayer.id : playerId;
+
       // Verificar si el jugador ya está eliminado
-      if (playerData.final_position) {
+      if (resolvedPlayer.final_position) {
         return res.status(400).json({
           error: 'Player already eliminated',
           message: 'El jugador ya ha sido eliminado'
@@ -836,7 +902,7 @@ router.put('/players/:playerId/eliminate',
       }
 
       // Obtener estadísticas del torneo para calcular posición y puntos
-      const tournamentId = playerData.tournament_id;
+      const tournamentId = resolvedPlayer.tournament_id;
 
       // Contar total de jugadores en el torneo
       const { count: totalPlayers, error: totalError } = await supabase
@@ -881,10 +947,14 @@ router.put('/players/:playerId/eliminate',
         updateData.eliminated_by = eliminated_by;
       }
 
-      const { data: updatedPlayer, error } = await supabase
+      if (usedUserIdFallback) {
+        console.log('⚠️ Se usó user_id como fallback. Frontend envió:', playerId, '-> real id:', resolvedPlayerId);
+      }
+
+      const { data: updatedPlayer, error } = await dbClient
         .from('tournament_players')
         .update(updateData)
-        .eq('id', playerId)
+        .eq('id', resolvedPlayerId)
         .select()
         .single();
 
@@ -908,37 +978,13 @@ router.put('/players/:playerId/eliminate',
       next(error);
     }
   }
-);
+];
 
-/**
- * @swagger
- * /api/players/{playerId}/results:
- *   put:
- *     summary: Actualizar resultados de un jugador del torneo (posición final y puntos)
- *     tags: [Players]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: playerId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               final_position:
- *                 type: number
- *               points_earned:
- *                 type: number
- *     responses:
- *       200:
- *         description: Resultados actualizados exitosamente
- */
+router.put('/players/:playerId/eliminate', ...eliminatePlayerHandler);
+router.put('/players/:playerId/eliminate/', ...eliminatePlayerHandler);
+router.post('/players/:playerId/eliminate', ...eliminatePlayerHandler);
+router.post('/players/:playerId/eliminate/', ...eliminatePlayerHandler);
+
 router.put('/players/:playerId/results',
   authenticateToken,
   requireAdmin,
@@ -994,103 +1040,6 @@ router.put('/players/:playerId/results',
   }
 );
 
-/**
- * @swagger
- * /api/tournaments/{tournamentId}/results:
- *   put:
- *     summary: Actualizar en bloque resultados (posición y puntos) de un torneo finalizado
- *     tags: [Players]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: tournamentId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - results
- *             properties:
- *               results:
- *                 type: array
- *                 items:
- *                   type: object
- *                   required: [player_id]
- *                   properties:
- *                     player_id:
- *                       type: string
- *                     final_position:
- *                       type: number
- *                     points_earned:
- *                       type: number
- *     responses:
- *       200:
- *         description: Resultados actualizados
- */
-
-/**
- * @swagger
- * /api/tournaments/{tournamentId}/results:
- *   put:
- *     summary: Actualizar resultados finales de un torneo
- *     tags: [Jugadores]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: tournamentId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: ID del torneo
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - results
- *             properties:
- *               results:
- *                 type: array
- *                 minItems: 1
- *                 items:
- *                   type: object
- *                   required:
- *                     - player_id
- *                   properties:
- *                     player_id:
- *                       type: string
- *                       format: uuid
- *                       description: ID del jugador
- *                     final_position:
- *                       type: integer
- *                       minimum: 1
- *                       description: Posición final del jugador
- *                     points_earned:
- *                       type: integer
- *                       minimum: 0
- *                       description: Puntos ganados por el jugador
- *     responses:
- *       200:
- *         description: Resultados actualizados exitosamente
- *       400:
- *         description: Datos inválidos
- *       401:
- *         description: No autenticado
- *       403:
- *         description: Sin permisos de administrador
- *       404:
- *         description: Torneo no encontrado
- */
 router.put('/tournaments/:tournamentId/results',
   authenticateToken,
   requireAdmin,
@@ -1164,35 +1113,6 @@ router.put('/tournaments/:tournamentId/results',
   }
 );
 
-/**
- * @swagger
- * /api/players/{playerId}/chips:
- *   put:
- *     summary: Actualizar fichas de un jugador
- *     tags: [Players]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: playerId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - current_chips
- *             properties:
- *               current_chips:
- *                 type: number
- *     responses:
- *       200:
- *         description: Fichas actualizadas exitosamente
- */
 router.put('/players/:playerId/chips',
   authenticateToken,
   requireAdmin,
@@ -1237,140 +1157,6 @@ router.put('/players/:playerId/chips',
   }
 );
 
-/**
- * @swagger
- * /api/players/{playerId}/position-points:
- *   put:
- *     summary: Actualizar posición y puntos de un jugador en torneo finalizado
- *     tags: [Players]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: playerId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - final_position
- *               - points_earned
- *               - updated_by
- *             properties:
- *               final_position:
- *                 type: integer
- *                 minimum: 1
- *                 description: Posición final del jugador
- *               points_earned:
- *                 type: integer
- *                 minimum: 0
- *                 description: Puntos obtenidos por el jugador
- *               updated_by:
- *                 type: string
- *                 format: uuid
- *                 description: ID del administrador que actualiza
- *     responses:
- *       200:
- *         description: Posición y puntos actualizados exitosamente
- *       400:
- *         description: Datos inválidos
- *       401:
- *         description: No autenticado
- *       403:
- *         description: No autorizado (solo administradores)
- *       404:
- *         description: Jugador no encontrado
- */
-
-/**
- * @swagger
- * /api/players/{playerId}/confirm-registration:
- *   put:
- *     summary: Confirmar inscripción de un jugador
- *     tags: [Players]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: playerId
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - initial_chips
- *             properties:
- *               initial_chips:
- *                 type: number
- *               admin_user_id:
- *                 type: string
- *     responses:
- *       200:
- *         description: Inscripción confirmada exitosamente
- */
-
-/**
- * @swagger
- * /api/players/{playerId}/position-points:
- *   put:
- *     summary: Actualizar posición final y puntos de un jugador
- *     tags: [Jugadores]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: playerId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: ID del jugador
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - final_position
- *               - points_earned
- *               - updated_by
- *             properties:
- *               final_position:
- *                 type: integer
- *                 minimum: 1
- *                 description: Posición final del jugador
- *               points_earned:
- *                 type: integer
- *                 minimum: 0
- *                 description: Puntos ganados por el jugador
- *               updated_by:
- *                 type: string
- *                 format: uuid
- *                 description: ID del administrador que actualiza
- *     responses:
- *       200:
- *         description: Posición y puntos actualizados exitosamente
- *       400:
- *         description: Datos inválidos
- *       401:
- *         description: No autenticado
- *       403:
- *         description: Sin permisos de administrador
- *       404:
- *         description: Jugador no encontrado
- */
 router.put('/players/:playerId/position-points',
   authenticateToken,
   requireAdmin,

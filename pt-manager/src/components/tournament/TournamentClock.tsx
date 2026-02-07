@@ -781,7 +781,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
             sx={{
               fontWeight: 'bold',
               fontFamily: 'monospace',
-              fontSize: { xs: '3.2rem', sm: '5rem', md: '6rem' },
+              fontSize: { xs: '6.4rem', sm: '10rem', md: '12rem' },
               lineHeight: 1.1,
               textShadow: '2px 2px 4px rgba(0,0,0,0.1)',
               color: 'primary.main',

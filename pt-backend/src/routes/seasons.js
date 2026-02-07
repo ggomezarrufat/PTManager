@@ -124,6 +124,47 @@ router.get('/', authenticateToken, async (req, res, next) => {
 
 /**
  * @swagger
+ * /api/seasons/active:
+ *   get:
+ *     summary: Obtener la temporada activa (fecha actual dentro de start_date y end_date)
+ *     tags: [Seasons]
+ *     responses:
+ *       200:
+ *         description: Temporada activa o vacío si no hay ninguna
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 season:
+ *                   nullable: true
+ *                   $ref: '#/components/schemas/Season'
+ */
+router.get('/active', async (req, res, next) => {
+  try {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    const { data: season, error } = await supabase
+      .from('seasons')
+      .select('*')
+      .lte('start_date', todayStr)
+      .gte('end_date', todayStr)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching active season:', error);
+      throw error;
+    }
+
+    res.json({ season: season || null });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @swagger
  * /api/seasons/{id}:
  *   get:
  *     summary: Obtener una temporada por ID

@@ -187,15 +187,17 @@ router.get('/leaderboard', async (req, res, next) => {
 
     // Si se proporciona una temporada, filtrar torneos por temporada
     if (season) {
-      // Buscar la temporada por ID o nombre
+      // Buscar la temporada por ID (UUID o numérico) o por nombre
       let seasonQuery = supabase
         .from('seasons')
         .select('id');
 
-      // Si es un UUID, buscar por ID, si no, buscar por nombre
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      const numericRegex = /^\d+$/;
       if (uuidRegex.test(season)) {
         seasonQuery = seasonQuery.eq('id', season);
+      } else if (numericRegex.test(season)) {
+        seasonQuery = seasonQuery.eq('id', parseInt(season, 10));
       } else {
         seasonQuery = seasonQuery.eq('name', season);
       }

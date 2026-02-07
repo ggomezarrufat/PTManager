@@ -43,6 +43,14 @@ if (process.env.NODE_ENV === 'production') {
   console.log('🔓 Development: Trust proxy no configurado');
 }
 
+// 🔴 DEBUG ABSOLUTO: Primer middleware, antes de TODO (CORS, helmet, etc.)
+app.use((req, res, next) => {
+  if (req.method !== 'GET') {
+    console.log(`🔴 [FIRST-MW] ${req.method} ${req.originalUrl} from ${req.ip} origin=${req.headers.origin || 'none'}`);
+  }
+  next();
+});
+
 // CORS configuration (permitir múltiples orígenes en dev) – debe ir antes que cualquier otra cosa
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3001,http://localhost:5000,http://localhost:5001,https://a907eb818f3b.ngrok-free.app').split(',');
 const corsOptions = {
@@ -108,6 +116,14 @@ app.use('/api/auth', authLimiter);
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Debug: log ALL incoming requests BEFORE morgan and routes
+app.use((req, res, next) => {
+  if (req.method !== 'GET') {
+    console.log(`🔵 [DEBUG] ${req.method} ${req.originalUrl}`);
+  }
+  next();
+});
 
 // Logging
 app.use(morgan('combined'));
@@ -195,6 +211,7 @@ app.use('/api/seasons', seasonRoutes);
 
 // 404 handler
 app.use((req, res) => {
+  console.log('⚠️ 404 - No route matched:', req.method, req.originalUrl);
   res.status(404).json({
     error: 'Not Found',
     message: `Route ${req.originalUrl} not found`,

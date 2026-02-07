@@ -205,10 +205,13 @@ app.use((req, res) => {
       '/api/users/*',
       '/api/tournaments/*',
       '/api/tournaments/:id/players',
-      '/api/players/*',
       '/api/tournaments/:id/clock',
+      '/api/tournaments/:id/clock/reset',
+      '/api/players/*',
+      '/api/players/:id/eliminate',
       '/api/players/:id/rebuys',
       '/api/players/:id/addons',
+      '/api/clock/*',
       '/api/reports/leaderboard'
     ]
   });

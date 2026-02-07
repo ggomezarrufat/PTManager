@@ -82,6 +82,13 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
   const activePlayers = players.filter(p => p.is_active && !p.is_eliminated);
   const filteredPlayers = showOnlyActive ? activePlayers : players;
 
+  // Promedio de fichas por jugador activo (sin eliminados)
+  const averageChipsPerActivePlayer = activePlayers.length > 0
+    ? Math.round(
+        activePlayers.reduce((sum, p) => sum + (p.current_chips ?? 0), 0) / activePlayers.length
+      )
+    : 0;
+
   // Cargar información del torneo
   useEffect(() => {
     const loadTournamentInfo = async () => {
@@ -736,11 +743,12 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
         mb: 3,
         position: 'relative',
         overflow: 'hidden',
-        cursor: 'pointer'
+        cursor: 'pointer',
+        maxWidth: '100%',
       }}
       onClick={enableSounds}
     >
-      <CardContent>
+      <CardContent sx={{ px: { xs: 1.5, sm: 3 }, overflow: 'hidden' }}>
         {/* Header con información de conexión y nivel */}
         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
           <Box>
@@ -768,14 +776,17 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
         {/* Tiempo restante */}
         <Box textAlign="center" mb={3}>
           <Typography
-            variant="h2"
             component="div"
             className={`clock-time-display ${clockInfo?.timeRemaining && clockInfo.timeRemaining <= 10 ? 'countdown-animation' : ''}`}
             sx={{
               fontWeight: 'bold',
               fontFamily: 'monospace',
+              fontSize: { xs: '3.2rem', sm: '5rem', md: '6rem' },
+              lineHeight: 1.1,
               textShadow: '2px 2px 4px rgba(0,0,0,0.1)',
-              color: 'primary.main'
+              color: 'primary.main',
+              wordBreak: 'keep-all',
+              overflowWrap: 'normal'
             }}
           >
             {clockInfo ? clockInfo.formattedTime : formatTime(clockState.time_remaining_seconds)}
@@ -786,6 +797,11 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
               <span style={{ color: '#ff5722', fontWeight: 'bold' }}> ⚠️ ¡TIEMPO!</span>
             )}
           </Typography>
+          {isAdmin && activePlayers.length > 0 && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Promedio fichas/jugador activo: {averageChipsPerActivePlayer.toLocaleString('es-ES')} ({activePlayers.length} activos)
+            </Typography>
+          )}
 
           {/* Barra de progreso simple */}
           <Box sx={{ mt: 2 }}>
@@ -812,12 +828,12 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
 
         {/* Slider de ajuste de tiempo (solo para admins) */}
         {isAdmin && (
-          <Box sx={{ px: 3, mb: 2 }}>
+          <Box sx={{ px: { xs: 1, sm: 3 }, mb: 2 }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={0.5}>
               <Typography variant="caption" color="text.secondary">
                 00:00
               </Typography>
-              <Typography variant="caption" color="text.secondary" fontWeight="bold">
+              <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ display: { xs: 'none', sm: 'block' } }}>
                 {sliderValue !== null
                   ? `Ajustar a ${formatTime(sliderValue)}`
                   : 'Deslizar para ajustar tiempo'
@@ -862,7 +878,12 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
 
         {/* Controles mejorados (solo para admins) */}
         {isAdmin && (
-          <Box display="flex" justifyContent="center" gap={2} flexWrap="wrap" mb={2}>
+          <Box
+            display="grid"
+            gridTemplateColumns={{ xs: '1fr 1fr', sm: 'repeat(auto-fit, minmax(140px, 1fr))' }}
+            gap={1}
+            mb={2}
+          >
             <Button
               variant="contained"
               startIcon={clockState.is_paused ? <PlayArrow /> : <Pause />}
@@ -870,6 +891,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
               color={clockState.is_paused ? 'success' : 'warning'}
               size="large"
               disabled={!isConnected}
+              sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' }, minWidth: 0 }}
             >
               {clockState.is_paused ? 'Reanudar' : 'Pausar'}
             </Button>
@@ -880,8 +902,9 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
               onClick={handlePreviousLevel}
               color="secondary"
               disabled={!isConnected || !clockState.is_paused || clockState.current_level <= 1}
+              sx={{ minWidth: 0, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
             >
-              Nivel Anterior
+              Anterior
             </Button>
 
             <Button
@@ -890,8 +913,9 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
               onClick={handleNextLevel}
               color="secondary"
               disabled={!isConnected || !clockState.is_paused}
+              sx={{ minWidth: 0, fontSize: { xs: '0.75rem', sm: '0.875rem' } }}
             >
-              Siguiente Nivel
+              Siguiente
             </Button>
 
             <Button
@@ -901,6 +925,8 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
               color="warning"
               disabled={!isConnected}
               sx={{
+                minWidth: 0,
+                fontSize: { xs: '0.75rem', sm: '0.875rem' },
                 borderColor: 'warning.main',
                 color: 'warning.main',
                 '&:hover': {
@@ -909,7 +935,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
                 }
               }}
             >
-              Reiniciar Reloj
+              Reiniciar
             </Button>
 
             <Button
@@ -920,6 +946,8 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
               disabled={!isConnected}
               size="large"
               sx={{
+                minWidth: 0,
+                fontSize: { xs: '0.75rem', sm: '0.875rem' },
                 border: '2px solid',
                 borderColor: 'info.main',
                 '&:hover': {
@@ -929,7 +957,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
                 position: 'relative'
               }}
             >
-              Gestionar Recompras
+              Recompras
               {players.filter(p => p.is_active).length > 0 && (
                 <Chip
                   size="small"
@@ -954,6 +982,8 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
               color="error"
               disabled={!isConnected}
               sx={{
+                minWidth: 0,
+                fontSize: { xs: '0.75rem', sm: '0.875rem' },
                 border: '2px solid',
                 borderColor: 'error.main',
                 '&:hover': {
@@ -962,7 +992,7 @@ const TournamentClock: React.FC<TournamentClockProps> = ({ tournamentId }) => {
                 }
               }}
             >
-              Terminar Torneo
+              Terminar
             </Button>
           </Box>
         )}

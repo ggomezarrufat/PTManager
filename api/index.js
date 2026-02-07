@@ -101,14 +101,14 @@ swaggerSetup(app);
 // Aplicar rate limiting a auth antes de las rutas
 app.use('/api/auth', authLimiter);
 
-// API Routes
+// API Routes - clockRoutes antes de tournamentRoutes para que /api/tournaments/:id/clock/* no sea capturado por tournaments
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/tournaments', tournamentRoutes);
+app.use('/api', clockRoutes);
 app.use('/api', playerRoutes);
 app.use('/api', rebuyRoutes);
 app.use('/api', addonRoutes);
-app.use('/api', clockRoutes);
+app.use('/api/tournaments', tournamentRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/seasons', seasonRoutes);
 

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -7,27 +7,72 @@ import {
   TextField,
   Button,
   Alert,
-  Container
+  Container,
+  CircularProgress
 } from '@mui/material';
 import {
   ArrowBack as ArrowBackIcon,
-  VpnKey as KeyIcon
+  VpnKey as KeyIcon,
+  Email as EmailIcon,
+  CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
+import { authService } from '../services/apiService';
+import { supabase } from '../config/supabase';
 
 const ResetPassword: React.FC = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [emailSent, setEmailSent] = useState(false);
 
-  // Verificar si tenemos un token de reset en la URL
-  const resetToken = searchParams.get('token');
-  const isResetMode = !!resetToken;
+  // Modo recovery: se activa cuando Supabase detecta el token de recuperación en la URL
+  const [isRecoveryMode, setIsRecoveryMode] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
 
+  // Escuchar cambios de autenticación para detectar el evento PASSWORD_RECOVERY
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecoveryMode(true);
+        setCheckingSession(false);
+        setError(null);
+        setSuccess(null);
+      }
+    });
+
+    // Verificar si ya hay una sesión de recovery activa (por si el evento ya se disparó)
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        // Si hay sesión y la URL contiene indicadores de recovery, activar modo recovery
+        const hash = window.location.hash;
+        if (hash && (hash.includes('type=recovery') || hash.includes('type=magiclink'))) {
+          setIsRecoveryMode(true);
+        } else if (session && window.location.hash.includes('access_token')) {
+          // Si hay token en la URL, esperar al evento PASSWORD_RECOVERY
+          return;
+        }
+      } catch {
+        // Ignorar errores de sesión
+      } finally {
+        setCheckingSession(false);
+      }
+    };
+
+    // Pequeño delay para dar tiempo al Supabase client a procesar el hash
+    const timeout = setTimeout(checkSession, 500);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
+  }, []);
+
+  // Solicitar envío de email de recuperación
   const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -35,24 +80,23 @@ const ResetPassword: React.FC = () => {
     setSuccess(null);
 
     try {
-      // Validaciones
       if (!email.trim()) {
         setError('El email es requerido');
         return;
       }
 
-      // TODO: Implementar solicitud de reset de contraseña
-      // await authService.requestPasswordReset(email);
-      
-      setSuccess('Se ha enviado un enlace de recuperación a tu email');
-      
+      await authService.requestPasswordReset(email);
+
+      setEmailSent(true);
+      setSuccess('Si el email existe en nuestro sistema, recibirás un enlace de recuperación en tu correo.');
     } catch (err: any) {
-      setError(err.message || 'Error al solicitar el reset de contraseña');
+      setError(err.message || 'Error al solicitar la recuperación de contraseña');
     } finally {
       setLoading(false);
     }
   };
 
+  // Establecer nueva contraseña usando la sesión de Supabase
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -60,7 +104,6 @@ const ResetPassword: React.FC = () => {
     setSuccess(null);
 
     try {
-      // Validaciones
       if (!newPassword.trim()) {
         setError('La nueva contraseña es requerida');
         return;
@@ -76,22 +119,53 @@ const ResetPassword: React.FC = () => {
         return;
       }
 
-      // TODO: Implementar reset de contraseña con token
-      // await authService.resetPassword(resetToken, newPassword);
-      
-      setSuccess('Contraseña actualizada exitosamente');
-      
-      // Redirigir al login después de un momento
+      // Usar Supabase directamente para actualizar la contraseña
+      // La sesión fue establecida automáticamente por el redirect de Supabase
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+
+      setSuccess('Contraseña actualizada exitosamente. Redirigiendo al login...');
+
+      // Cerrar la sesión de recovery y redirigir al login
+      await supabase.auth.signOut();
+
       setTimeout(() => {
         navigate('/auth');
       }, 2000);
-      
     } catch (err: any) {
       setError(err.message || 'Error al actualizar la contraseña');
     } finally {
       setLoading(false);
     }
   };
+
+  // Pantalla de carga mientras se verifica la sesión
+  if (checkingSession && window.location.hash.includes('access_token')) {
+    return (
+      <Container maxWidth="sm">
+        <Box
+          sx={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Box textAlign="center">
+            <CircularProgress size={48} sx={{ mb: 2 }} />
+            <Typography variant="h6" color="text.secondary">
+              Verificando enlace de recuperación...
+            </Typography>
+          </Box>
+        </Box>
+      </Container>
+    );
+  }
 
   return (
     <Container maxWidth="sm">
@@ -115,7 +189,6 @@ const ResetPassword: React.FC = () => {
             <Button
               startIcon={<ArrowBackIcon />}
               onClick={() => navigate('/auth')}
-              sx={{ mb: 2 }}
             >
               Volver al Login
             </Button>
@@ -124,7 +197,7 @@ const ResetPassword: React.FC = () => {
           <Box display="flex" alignItems="center" justifyContent="center" mb={3}>
             <KeyIcon color="primary" sx={{ fontSize: 40, mr: 2 }} />
             <Typography variant="h4" component="h1" textAlign="center">
-              {isResetMode ? 'Nueva Contraseña' : 'Recuperar Contraseña'}
+              {isRecoveryMode ? 'Nueva Contraseña' : 'Recuperar Contraseña'}
             </Typography>
           </Box>
 
@@ -140,10 +213,14 @@ const ResetPassword: React.FC = () => {
             </Alert>
           )}
 
-          {isResetMode ? (
+          {isRecoveryMode ? (
             /* Formulario para establecer nueva contraseña */
             <form onSubmit={handleResetPassword}>
               <Box display="flex" flexDirection="column" gap={3}>
+                <Typography variant="body1" color="text.secondary" textAlign="center">
+                  Ingresa tu nueva contraseña.
+                </Typography>
+
                 <TextField
                   label="Nueva Contraseña"
                   type="password"
@@ -151,6 +228,7 @@ const ResetPassword: React.FC = () => {
                   onChange={(e) => setNewPassword(e.target.value)}
                   fullWidth
                   required
+                  autoFocus
                 />
 
                 <TextField
@@ -173,13 +251,40 @@ const ResetPassword: React.FC = () => {
                 </Button>
               </Box>
             </form>
+          ) : emailSent ? (
+            /* Confirmación de email enviado */
+            <Box textAlign="center" py={2}>
+              <CheckCircleIcon color="success" sx={{ fontSize: 64, mb: 2 }} />
+              <Typography variant="h6" gutterBottom>
+                Revisa tu correo
+              </Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+                Si el email <strong>{email}</strong> está registrado, recibirás un enlace para restablecer tu contraseña.
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Revisa también tu carpeta de spam. El enlace expira en 1 hora.
+              </Typography>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setEmailSent(false);
+                  setSuccess(null);
+                  setEmail('');
+                }}
+              >
+                Enviar de nuevo
+              </Button>
+            </Box>
           ) : (
             /* Formulario para solicitar reset */
             <form onSubmit={handleRequestReset}>
               <Box display="flex" flexDirection="column" gap={3}>
-                <Typography variant="body1" color="text.secondary" textAlign="center">
-                  Ingresa tu email y te enviaremos un enlace para recuperar tu contraseña.
-                </Typography>
+                <Box textAlign="center">
+                  <EmailIcon color="action" sx={{ fontSize: 48, mb: 1 }} />
+                  <Typography variant="body1" color="text.secondary">
+                    Ingresa tu email y te enviaremos un enlace para recuperar tu contraseña.
+                  </Typography>
+                </Box>
 
                 <TextField
                   label="Email"
@@ -188,13 +293,14 @@ const ResetPassword: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   fullWidth
                   required
+                  autoFocus
                 />
 
                 <Button
                   type="submit"
                   variant="contained"
                   size="large"
-                  disabled={loading}
+                  disabled={loading || !email.trim()}
                   fullWidth
                 >
                   {loading ? 'Enviando...' : 'Enviar Enlace de Recuperación'}
@@ -202,13 +308,6 @@ const ResetPassword: React.FC = () => {
               </Box>
             </form>
           )}
-
-          <Alert severity="info" sx={{ mt: 3 }}>
-            <Typography variant="body2">
-              <strong>Nota:</strong> La funcionalidad de reset de contraseña será implementada en una versión futura. 
-              Por ahora, contacta al administrador para cambiar tu contraseña.
-            </Typography>
-          </Alert>
         </Paper>
       </Box>
     </Container>

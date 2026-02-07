@@ -12,6 +12,7 @@ interface TournamentStore extends TournamentState {
     activePlayers: number;
     totalRebuys: number;
     totalAddons: number;
+    averageChipsPerActivePlayer: number;
     lastUpdated: string;
   } | null;
   tournamentStatsLoading: boolean;
@@ -555,19 +556,29 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
       
       // Obtener jugadores activos desde el estado local
       const { players } = get();
-      const activePlayers = players.filter(p => p.is_active && !p.is_eliminated).length;
+      const activePlayersList = players.filter(p => p.is_active && !p.is_eliminated);
+      const activePlayers = activePlayersList.length;
       
       // Calcular rebuys y addons desde los jugadores cargados
       const totalRebuys = players.reduce((sum, player) => sum + (player.rebuys_count || 0), 0);
       const totalAddons = players.reduce((sum, player) => sum + (player.addons_count || 0), 0);
       
-      console.log('✅ Estadísticas cargadas:', { activePlayers, totalRebuys, totalAddons });
+      // Promedio de fichas por jugador activo (sin eliminados). API puede devolver chips o current_chips
+      const chipValue = (p: Player) => (p as any).current_chips ?? p.chips ?? 0;
+      const averageChipsPerActivePlayer = activePlayers > 0
+        ? Math.round(
+            activePlayersList.reduce((sum, p) => sum + chipValue(p), 0) / activePlayers
+          )
+        : 0;
+      
+      console.log('✅ Estadísticas cargadas:', { activePlayers, totalRebuys, totalAddons, averageChipsPerActivePlayer });
       
       set({ 
         tournamentStats: {
           activePlayers,
           totalRebuys,
           totalAddons,
+          averageChipsPerActivePlayer,
           lastUpdated: new Date().toISOString()
         },
         tournamentStatsLoading: false 

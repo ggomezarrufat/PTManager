@@ -157,6 +157,10 @@ const UserAdmin: React.FC = () => {
       setUserFormError('La contraseña es obligatoria para nuevos usuarios');
       return;
     }
+    if (userForm.password.trim().length > 0 && userForm.password.length < 6) {
+      setUserFormError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
 
     setUserFormLoading(true);
     setUserFormError(null);
@@ -164,25 +168,17 @@ const UserAdmin: React.FC = () => {
     try {
       if (editingUser) {
         
-        // Actualizar usuario existente
-        const updateData = {
+        // Actualizar usuario existente (solo admins pueden enviar password)
+        const updateData: { name: string; nickname?: string; is_admin: boolean; password?: string } = {
           name: userForm.name,
           nickname: userForm.nickname || undefined,
           is_admin: userForm.is_admin
         };
-
+        if (userForm.password.trim()) {
+          updateData.password = userForm.password;
+        }
 
         await userService.updateUser(editingUser.id, updateData);
-
-
-
-        // Nota: La actualización de contraseñas desde admin no está disponible
-        // desde el frontend con clave anónima. Los usuarios deben usar 
-        // "Olvidé mi contraseña" para cambiar su contraseña.
-        if (userForm.password) {
-          console.warn('⚠️ UserAdmin: Contraseña no se actualiza desde admin');
-          // No mostrar error, solo advertencia en consola
-        }
       } else {
         // Crear nuevo usuario
         const newUserData = {
@@ -567,10 +563,10 @@ const UserAdmin: React.FC = () => {
               onChange={(e) => setUserForm({ ...userForm, password: e.target.value })}
               fullWidth
               required={!editingUser}
-              disabled={userFormLoading || !!editingUser}
+              disabled={userFormLoading}
               variant="outlined"
               size={isMobile ? "medium" : "small"}
-              helperText={editingUser ? 'Para cambiar contraseñas, usar "Olvidé mi contraseña"' : 'Mínimo 6 caracteres'}
+              helperText={editingUser ? 'Dejar en blanco para no cambiar. Mínimo 6 caracteres para nueva contraseña.' : 'Mínimo 6 caracteres'}
             />
 
             <FormControlLabel

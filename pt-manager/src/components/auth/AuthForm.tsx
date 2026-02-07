@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Card,
@@ -41,6 +42,7 @@ function TabPanel(props: TabPanelProps) {
 
 const AuthForm: React.FC = () => {
   const { login, register } = useAuthStore();
+  const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -320,9 +322,9 @@ const AuthForm: React.FC = () => {
     handleAuthError('Autenticación social no disponible en modo API. Use email y contraseña.');
   };
 
-  const handleForgotPassword = async () => {
-    handleAuthError('Recuperación de contraseña no implementada en modo API. Contacte al administrador.');
-  };
+  const handleForgotPassword = useCallback(() => {
+    navigate('/reset-password');
+  }, [navigate]);
 
   const handleResetRateLimit = async () => {
     try {

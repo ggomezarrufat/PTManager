@@ -608,7 +608,8 @@ router.put('/:id', [
   param('id').isUUID().withMessage('ID debe ser un UUID válido'),
   body('name').optional().isLength({ min: 2 }).withMessage('El nombre debe tener al menos 2 caracteres'),
   body('nickname').optional().isLength({ min: 1 }).withMessage('El apodo debe tener al menos 1 carácter'),
-  body('is_admin').optional().isBoolean().withMessage('is_admin debe ser un valor booleano')
+  body('is_admin').optional().isBoolean().withMessage('is_admin debe ser un valor booleano'),
+  body('password').optional().isLength({ min: 6 }).withMessage('La contraseña debe tener al menos 6 caracteres')
 ], authenticateToken, async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -620,9 +621,9 @@ router.put('/:id', [
     }
 
     const { id } = req.params;
-    const updateData = req.body;
+    const updateData = { ...req.body };
 
-    // Solo admins pueden actualizar otros usuarios o cambiar is_admin
+    // Solo admins pueden actualizar otros usuarios o cambiar is_admin o contraseña
     if (!req.profile.is_admin) {
       if (req.profile.id !== id) {
         return res.status(403).json({
@@ -630,8 +631,23 @@ router.put('/:id', [
           message: 'Solo puedes actualizar tu propio perfil'
         });
       }
-      // Usuarios normales no pueden cambiar is_admin
       delete updateData.is_admin;
+      delete updateData.password;
+    }
+
+    // Si un admin envía nueva contraseña, actualizarla en Auth
+    if (req.profile.is_admin && updateData.password) {
+      const supabaseAdmin = getSupabaseClient(true);
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+        password: updateData.password
+      });
+      if (authError) {
+        return res.status(400).json({
+          error: 'Password Update Failed',
+          message: authError.message || 'Error al actualizar la contraseña'
+        });
+      }
+      delete updateData.password;
     }
 
     const supabase = getSupabaseClient();

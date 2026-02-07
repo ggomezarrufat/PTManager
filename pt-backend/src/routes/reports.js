@@ -8,10 +8,8 @@ const router = express.Router();
  * @swagger
  * /api/reports/leaderboard:
  *   get:
- *     summary: Obtener tabla de posiciones global por puntos acumulados
+ *     summary: Obtener tabla de posiciones global por puntos acumulados (acceso público)
  *     tags: [Reports]
- *     security:
- *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: season
@@ -178,20 +176,22 @@ const router = express.Router();
  *       404:
  *         description: Torneo no encontrado
  */
-router.get('/leaderboard', authenticateToken, async (req, res, next) => {
+// Leaderboard público (solo lectura) para que Dashboard y Reports carguen sin requerir sesión
+router.get('/leaderboard', async (req, res, next) => {
   try {
-    const { season } = req.query;
+    const seasonParam = typeof req.query.season === 'string' ? req.query.season.trim() : req.query.season;
+    const season = seasonParam || null;
     console.log('🔍 Reports: Iniciando carga del leaderboard...', { season });
-    
+
     let tournamentIds = null;
-    
+
     // Si se proporciona una temporada, filtrar torneos por temporada
     if (season) {
       // Buscar la temporada por ID o nombre
       let seasonQuery = supabase
         .from('seasons')
         .select('id');
-      
+
       // Si es un UUID, buscar por ID, si no, buscar por nombre
       const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (uuidRegex.test(season)) {
@@ -199,14 +199,12 @@ router.get('/leaderboard', authenticateToken, async (req, res, next) => {
       } else {
         seasonQuery = seasonQuery.eq('name', season);
       }
-      
-      const { data: seasonData, error: seasonError } = await seasonQuery.single();
-      
+
+      const { data: seasonData, error: seasonError } = await seasonQuery.maybeSingle();
+
       if (seasonError || !seasonData) {
-        return res.status(404).json({
-          error: 'Season Not Found',
-          message: `Temporada "${season}" no encontrada`
-        });
+        // Devolver lista vacía en lugar de 404 para que la UI muestre "No hay datos" sin error
+        return res.json({ leaderboard: [] });
       }
       
       // Obtener todos los torneos de esta temporada

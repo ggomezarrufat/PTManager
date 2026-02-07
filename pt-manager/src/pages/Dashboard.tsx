@@ -84,11 +84,13 @@ const Dashboard: React.FC = () => {
     try {
       setLeaderboardLoading(true);
       setLeaderboardError(null);
-      const response = await reportsService.getLeaderboard();
-      setLeaderboard(response.leaderboard);
+      const currentSeason = String(new Date().getFullYear());
+      const response = await reportsService.getLeaderboard(currentSeason);
+      setLeaderboard(response.leaderboard || []);
     } catch (err) {
       console.error('❌ Dashboard: Error cargando leaderboard:', err);
       setLeaderboardError(err instanceof Error ? err.message : 'Error al cargar la tabla de posiciones');
+      setLeaderboard([]);
     } finally {
       setLeaderboardLoading(false);
     }

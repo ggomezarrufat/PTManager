@@ -368,6 +368,77 @@ router.post('/register', [
 
 /**
  * @swagger
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Solicitar recuperación de contraseña
+ *     tags: [Autenticación]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: Email del usuario
+ *     responses:
+ *       200:
+ *         description: Solicitud procesada (siempre retorna éxito por seguridad)
+ *       400:
+ *         description: Datos inválidos
+ */
+router.post('/forgot-password', [
+  body('email').isEmail().withMessage('Email válido requerido')
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        error: 'Validation Error',
+        message: 'Datos inválidos',
+        details: errors.array()
+      });
+    }
+
+    const { email } = req.body;
+    const supabase = getSupabaseClient();
+
+    // Construir URL de redirección al frontend
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const redirectTo = `${frontendUrl}/reset-password`;
+
+    console.log(`🔑 Solicitud de recuperación de contraseña para: ${email}`);
+    console.log(`🔗 Redirect URL: ${redirectTo}`);
+
+    // Solicitar reset de contraseña a Supabase
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo
+    });
+
+    if (error) {
+      console.error('Error al solicitar reset de contraseña:', error.message);
+      // Por seguridad, no revelar si el email existe o no
+      // Retornar éxito de todas formas
+    }
+
+    // Siempre retornar éxito para no revelar si el email existe
+    res.json({
+      success: true,
+      message: 'Si el email existe en nuestro sistema, recibirás un enlace de recuperación en tu correo.'
+    });
+
+  } catch (error) {
+    console.error('Error en forgot-password:', error);
+    next(error);
+  }
+});
+
+/**
+ * @swagger
  * /api/auth/me:
  *   get:
  *     summary: Obtener información del usuario actual

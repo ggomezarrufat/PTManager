@@ -206,6 +206,16 @@ const authService = {
     const token = localStorage.getItem('authToken');
     return !!token;
   },
+
+  async requestPasswordReset(email: string) {
+    return await apiRequest<{
+      success: boolean;
+      message: string;
+    }>('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
 };
 
 // Refresh token helper
@@ -287,6 +297,7 @@ const userService = {
     name?: string;
     nickname?: string;
     is_admin?: boolean;
+    password?: string;
   }) {
     return await apiRequest<{
       message: string;

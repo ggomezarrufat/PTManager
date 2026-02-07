@@ -28,6 +28,7 @@ interface TournamentClockProps {
     activePlayers: number;
     totalRebuys: number;
     totalAddons: number;
+    averageChipsPerActivePlayer: number;
     lastUpdated: string;
   } | null;
   tournamentStatsLoading?: boolean;
@@ -420,6 +421,13 @@ const TournamentClock: React.FC<TournamentClockProps> = ({
                 {tournamentStatsLoading ? '...' : (tournamentStats?.totalAddons || 0)}
               </Text>
               <Text style={styles.statLabel}>Addons</Text>
+            </View>
+            <View style={styles.statItem}>
+              <Ionicons name="pricetag" size={20} color="#70a1ff" />
+              <Text style={styles.statValue}>
+                {tournamentStatsLoading ? '...' : (tournamentStats?.averageChipsPerActivePlayer ?? 0).toLocaleString('es-ES')}
+              </Text>
+              <Text style={styles.statLabel}>Prom. fichas/activo</Text>
             </View>
           </View>
         </View>

@@ -110,9 +110,10 @@ const Reports: React.FC = () => {
       setLeaderboardError(null);
       const seasonParam = selectedSeason && selectedSeason !== 'all' ? selectedSeason : undefined;
       const response = await reportsService.getLeaderboard(seasonParam);
-      setLeaderboard(response.leaderboard);
+      setLeaderboard(response.leaderboard || []);
     } catch (err) {
       setLeaderboardError(err instanceof Error ? err.message : 'Error al cargar la tabla de posiciones');
+      setLeaderboard([]);
     } finally {
       setLeaderboardLoading(false);
     }

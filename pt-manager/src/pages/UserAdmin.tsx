@@ -70,30 +70,12 @@ const UserAdmin: React.FC = () => {
 
   const loadUsers = useCallback(async () => {
     try {
-      console.log('👥 UserAdmin: Iniciando carga de usuarios...');
       setLoading(true);
       setError(null);
 
-      console.log('👤 UserAdmin: Usuario actual:', user?.email, 'Es admin:', user?.is_admin);
 
       const response = await userService.getUsers(1, 100); // Cargar hasta 100 usuarios
-
-      console.log('📊 UserAdmin: Respuesta de API:', { 
-        users: response.users?.length || 0, 
-        pagination: response.pagination
-      });
-
-      console.log('✅ UserAdmin: Usuarios cargados exitosamente:', response.users?.length || 0);
       const usersList = response.users || [];
-      
-      // Debug: Verificar avatares en los usuarios
-      usersList.forEach((userData, index) => {
-        console.log(`👤 Usuario ${index + 1}:`, {
-          name: userData.name,
-          hasAvatar: !!userData.avatar_url,
-          avatarUrl: userData.avatar_url
-        });
-      });
       
       setUsers(usersList);
       setFilteredUsers(usersList);
@@ -165,11 +147,6 @@ const UserAdmin: React.FC = () => {
   };
 
   const handleSaveUser = async () => {
-    console.log('💾 UserAdmin: Iniciando guardado de usuario...', {
-      editingUser: !!editingUser,
-      userForm: { ...userForm, password: userForm.password ? '[HIDDEN]' : '' }
-    });
-
     if (!userForm.email || !userForm.name) {
       setUserFormError('Email y nombre son obligatorios');
       return;
@@ -185,7 +162,6 @@ const UserAdmin: React.FC = () => {
 
     try {
       if (editingUser) {
-        console.log('✏️ UserAdmin: Actualizando usuario existente:', editingUser.id);
         
         // Actualizar usuario existente
         const updateData = {
@@ -194,13 +170,10 @@ const UserAdmin: React.FC = () => {
           is_admin: userForm.is_admin
         };
 
-        console.log('📝 UserAdmin: Datos a actualizar:', updateData);
 
         const updatedUser = await userService.updateUser(editingUser.id, updateData);
 
-        console.log('📊 UserAdmin: Resultado de actualización:', updatedUser);
 
-        console.log('✅ UserAdmin: Usuario actualizado exitosamente');
 
         // Nota: La actualización de contraseñas desde admin no está disponible
         // desde el frontend con clave anónima. Los usuarios deben usar 
@@ -219,11 +192,9 @@ const UserAdmin: React.FC = () => {
           is_admin: userForm.is_admin
         };
 
-        console.log('➕ UserAdmin: Creando nuevo usuario:', { ...newUserData, password: '[HIDDEN]' });
 
-        const newUser = await userService.createUser(newUserData);
+        await userService.createUser(newUserData);
 
-        console.log('✅ UserAdmin: Usuario creado exitosamente:', newUser.user.id);
       }
 
       setUserDialogOpen(false);
@@ -255,12 +226,9 @@ const UserAdmin: React.FC = () => {
     setDeleteLoading(true);
 
     try {
-      console.log('🗑️ UserAdmin: Eliminando usuario:', userToDelete.id);
 
       await userService.deleteUser(userToDelete.id);
 
-      console.log('✅ UserAdmin: Usuario eliminado exitosamente');
-      console.log('Usuario eliminado del perfil. El registro de auth permanece por seguridad.');
 
       setDeleteDialogOpen(false);
       setUserToDelete(null);
@@ -418,10 +386,8 @@ const UserAdmin: React.FC = () => {
                             height: 48
                           }}
                           onError={() => {
-                            console.log('❌ Error cargando avatar para usuario:', userData.name, 'URL:', userData.avatar_url);
                           }}
                           onLoad={() => {
-                            console.log('✅ Avatar cargado exitosamente para usuario:', userData.name, 'URL:', userData.avatar_url);
                           }}
                         >
                           {(!userData.avatar_url || userData.avatar_url === '') && (

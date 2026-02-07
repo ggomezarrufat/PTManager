@@ -8,23 +8,13 @@ import { Tournament, TournamentClock } from '../types';
  */
 export const canMakeRebuy = (tournament: Tournament, clock: TournamentClock | null): boolean => {
   if (!clock) {
-    console.log('🚫 canMakeRebuy: No hay clock disponible');
     return false;
   }
   
   // Verificar si last_level_rebuy está definido
   if (tournament.last_level_rebuy === undefined || tournament.last_level_rebuy === null) {
-    console.log('⚠️ canMakeRebuy: last_level_rebuy no está definido, usando valor por defecto de 5');
     tournament.last_level_rebuy = 5; // Valor por defecto
   }
-  
-  console.log('🔍 canMakeRebuy: Verificando condiciones de rebuy:', {
-    current_level: clock.current_level,
-    last_level_rebuy: tournament.last_level_rebuy,
-    tournament_id: tournament.id,
-    tournament_name: tournament.name,
-    can_rebuy: clock.current_level <= tournament.last_level_rebuy
-  });
   
   // Los rebuys se permiten hasta el nivel last_level_rebuy inclusive
   return clock.current_level <= tournament.last_level_rebuy;
@@ -38,20 +28,11 @@ export const canMakeRebuy = (tournament: Tournament, clock: TournamentClock | nu
  */
 export const canMakeAddon = (tournament: Tournament, clock: TournamentClock | null): boolean => {
   if (!clock) {
-    console.log('🚫 canMakeAddon: No hay clock disponible');
     return false;
   }
   
   // Obtener el nivel actual de la estructura de blinds
   const currentLevelData = tournament.blind_structure?.[clock.current_level - 1];
-  
-  console.log('🔍 canMakeAddon: Verificando condiciones de addon:', {
-    current_level: clock.current_level,
-    is_paused: clock.is_paused,
-    level_is_pause: currentLevelData?.is_pause,
-    addons_allowed: currentLevelData?.addons_allowed,
-    tournament_id: tournament.id
-  });
   
   // Los addons se permiten si:
   // 1. El torneo está pausado Y

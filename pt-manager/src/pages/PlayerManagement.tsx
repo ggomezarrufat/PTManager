@@ -125,14 +125,12 @@ const PlayerManagement: React.FC = () => {
     }
 
     try {
-      console.log(`👤 Agregando jugador: ${selectedUser.name} (${selectedUser.email}) al torneo ${currentTournament.name}`);
       
       await addPlayer(currentTournament.id, {
         user_id: selectedUser.id,
         entry_fee_paid: currentTournament.entry_fee
       });
       
-      console.log('✅ Jugador agregado exitosamente');
       
       setAddPlayerDialogOpen(false);
       setSelectedUserId('');
@@ -143,24 +141,15 @@ const PlayerManagement: React.FC = () => {
   };
 
   const handleEliminatePlayer = async () => {
-    if (!selectedPlayerForElimination) return;
+    if (!selectedPlayerForElimination || !currentTournament?.id) return;
 
     try {
-      console.log('🔄 Intentando eliminar jugador desde PlayerManagement:', {
-        playerId: selectedPlayerForElimination.id,
-        eliminationPosition,
-        eliminationPoints,
-        userId: user?.id,
-        userName: user?.name,
-        isAuthenticated: !!user
-      });
-
       if (!user?.id) {
         throw new Error('Usuario no autenticado - no se puede eliminar el jugador');
       }
 
       // Usar el servicio actualizado con parámetros opcionales
-      await eliminatePlayer(selectedPlayerForElimination.id, eliminationPosition, user.id, eliminationPoints);
+      await eliminatePlayer(currentTournament.id, selectedPlayerForElimination.id, eliminationPosition, user.id, eliminationPoints);
       setEliminationDialogOpen(false);
       setSelectedPlayerForElimination(null);
 

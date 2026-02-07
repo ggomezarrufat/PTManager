@@ -130,19 +130,13 @@ const TournamentView: React.FC = () => {
   const loadAvailableUsers = async () => {
     try {
       setLoadingUsers(true);
-      console.log('🔍 TournamentView: Cargando usuarios disponibles para torneo...');
       const response = await userService.getAvailableUsersForTournament();
-      console.log('📊 TournamentView: Usuarios obtenidos:', {
-        total: response.users?.length || 0,
-        users: response.users?.map(u => ({ id: u.id, name: u.name, email: u.email }))
-      });
       setAvailableUsers(response.users || []);
     } catch (err) {
       console.error('❌ TournamentView: Error cargando usuarios:', err);
       // Si falla, intentar con el endpoint de admin como fallback
       if (user?.is_admin) {
         try {
-          console.log('🔄 TournamentView: Intentando con endpoint de admin...');
           const fallbackResponse = await userService.getUsers(1, 100);
           setAvailableUsers(fallbackResponse.users || []);
         } catch (fallbackErr) {
@@ -158,15 +152,6 @@ const TournamentView: React.FC = () => {
   const availableUsersForTournament = availableUsers.filter(
     user => !players.some(player => player.user_id === user.id)
   );
-
-  // Debug: Log del filtrado
-  console.log('🎯 TournamentView: Filtrado de usuarios:', {
-    totalUsuarios: availableUsers.length,
-    jugadoresEnTorneo: players.length,
-    jugadoresIds: players.map(p => p.user_id),
-    usuariosDisponibles: availableUsersForTournament.length,
-    usuariosDisponiblesIds: availableUsersForTournament.map(u => u.id)
-  });
 
   const handleStartTournament = async () => {
     if (!currentTournament) return;
@@ -185,7 +170,6 @@ const TournamentView: React.FC = () => {
     }
 
     try {
-      console.log(`👤 Agregando jugador: ${selectedUser.name} (${selectedUser.email}) al torneo ${currentTournament.name}`);
       
       await playerService.addPlayerToTournament(currentTournament.id, {
         user_id: selectedUser.id,
@@ -193,7 +177,6 @@ const TournamentView: React.FC = () => {
         initial_chips: currentTournament.initial_chips
       });
       
-      console.log('✅ Jugador agregado exitosamente');
       
       setAddPlayerDialogOpen(false);
       setSelectedUserId('');

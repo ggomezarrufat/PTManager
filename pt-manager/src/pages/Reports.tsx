@@ -19,7 +19,11 @@ import {
   DialogContent,
   DialogActions,
   Button,
-  Chip
+  Chip,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import {
   EmojiEvents as TrophyIcon,
@@ -27,7 +31,8 @@ import {
   Delete as DeleteIcon,
   Info as InfoIcon
 } from '@mui/icons-material';
-import { reportsService, playerService } from '../services/apiService';
+import { reportsService, playerService, seasonService } from '../services/apiService';
+import { Season } from '../types/seasons';
 import { useTournamentStore } from '../store/tournamentStore';
 import { useAuthStore } from '../store/authStore';
 import { getUserDisplayName } from '../utils/userUtils';
@@ -51,6 +56,11 @@ const Reports: React.FC = () => {
   const [tournamentPlayerCounts, setTournamentPlayerCounts] = useState<{[key: string]: number}>({});
   const [playerCountsLoading, setPlayerCountsLoading] = useState(false);
   
+  // Estados para temporadas
+  const [seasons, setSeasons] = useState<Season[]>([]);
+  const [selectedSeason, setSelectedSeason] = useState<string>('2025'); // Por defecto temporada 2025
+  const [seasonsLoading, setSeasonsLoading] = useState(false);
+  
   // Estados para el modal de detalle de torneos
   const [tournamentDetailsOpen, setTournamentDetailsOpen] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
@@ -60,8 +70,13 @@ const Reports: React.FC = () => {
 
   useEffect(() => {
     loadTournaments();
+    loadSeasons();
     loadLeaderboard();
   }, [loadTournaments]);
+
+  useEffect(() => {
+    loadLeaderboard();
+  }, [selectedSeason]);
 
   useEffect(() => {
     if (tournaments && tournaments.length > 0) {
@@ -69,11 +84,29 @@ const Reports: React.FC = () => {
     }
   }, [tournaments]);
 
+  const loadSeasons = async () => {
+    try {
+      setSeasonsLoading(true);
+      const response = await seasonService.getSeasons();
+      setSeasons(response.seasons);
+      // Si hay una temporada 2025, seleccionarla por defecto
+      const season2025 = response.seasons.find((s: Season) => s.name === '2025');
+      if (season2025) {
+        setSelectedSeason('2025');
+      }
+    } catch (err) {
+      console.error('Error cargando temporadas:', err);
+    } finally {
+      setSeasonsLoading(false);
+    }
+  };
+
   const loadLeaderboard = async () => {
     try {
       setLeaderboardLoading(true);
       setLeaderboardError(null);
-      const response = await reportsService.getLeaderboard();
+      const seasonParam = selectedSeason && selectedSeason !== 'all' ? selectedSeason : undefined;
+      const response = await reportsService.getLeaderboard(seasonParam);
       setLeaderboard(response.leaderboard);
     } catch (err) {
       setLeaderboardError(err instanceof Error ? err.message : 'Error al cargar la tabla de posiciones');
@@ -320,10 +353,28 @@ const Reports: React.FC = () => {
       {/* Tabla de Posiciones */}
       <Card sx={{ mt: 4 }}>
         <CardContent>
-          <Typography variant="h6" gutterBottom display="flex" alignItems="center" gap={1}>
-            <TrophyIcon />
-            Tabla de Posiciones (Puntos Totales)
-          </Typography>
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h6" display="flex" alignItems="center" gap={1}>
+              <TrophyIcon />
+              Tabla de Posiciones (Puntos Totales)
+            </Typography>
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>Temporada</InputLabel>
+              <Select
+                value={selectedSeason}
+                label="Temporada"
+                onChange={(e) => setSelectedSeason(e.target.value)}
+                disabled={seasonsLoading}
+              >
+                <MenuItem value="all">Todas las temporadas</MenuItem>
+                {seasons.map((season) => (
+                  <MenuItem key={season.id} value={season.name}>
+                    {season.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
 
           {leaderboardLoading ? (
             <Box display="flex" justifyContent="center" alignItems="center" minHeight="100px">

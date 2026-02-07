@@ -109,3 +109,5 @@ La aplicación PT Manager Mobile está lista para usar en el simulador de iOS. T
 - [React Navigation](https://reactnavigation.org/)
 - [Supabase Docs](https://supabase.com/docs)
 
+
+

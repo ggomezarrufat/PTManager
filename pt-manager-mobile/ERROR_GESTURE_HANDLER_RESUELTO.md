@@ -110,3 +110,5 @@ npx expo start --ios --clear
 
 ¡El error de `react-native-gesture-handler` ha sido completamente resuelto y la aplicación PT Manager Mobile está funcionando correctamente en el emulador de iPhone!
 
+
+

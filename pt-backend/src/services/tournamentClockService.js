@@ -1,4 +1,5 @@
 const { supabase, supabaseAdmin } = require('../config/supabase');
+const { parseUtcTimestamp } = require('../utils/dateUtils');
 
 class TournamentClockService {
   constructor() {
@@ -92,9 +93,9 @@ class TournamentClockService {
 
     this.intervalId = setInterval(() => {
       this.updateTournamentClocks();
-    }, 10000); // 10 segundos
+    }, 5000); // 5 segundos
 
-    console.log('🔄 [AUTO-UPDATE] Polling de relojes iniciado - actualizaciones cada 10 segundos');
+    console.log('🔄 [AUTO-UPDATE] Polling de relojes iniciado - actualizaciones cada 5 segundos');
   }
 
   /**
@@ -179,11 +180,11 @@ class TournamentClockService {
       }
 
       const now = new Date();
-      const lastUpdated = new Date(clock.last_updated);
+      const lastUpdated = parseUtcTimestamp(clock.last_updated);
       const secondsElapsed = Math.floor((now - lastUpdated) / 1000);
 
-      // Si no han pasado al menos 10 segundos desde la última actualización, saltar
-      if (secondsElapsed < 10) {
+      // Si no han pasado al menos 5 segundos desde la última actualización, saltar
+      if (secondsElapsed < 5) {
         return false;
       }
 
@@ -196,7 +197,7 @@ class TournamentClockService {
       console.log(`   Segundos transcurridos: ${secondsElapsed}s`);
 
       // Verificar si el tiempo fue ajustado manualmente recientemente (en los últimos 30 segundos)
-      const lastUpdatedTime = new Date(clock.last_updated).getTime();
+      const lastUpdatedTime = parseUtcTimestamp(clock.last_updated).getTime();
       const timeSinceLastUpdate = now.getTime() - lastUpdatedTime;
       const wasRecentlyAdjusted = timeSinceLastUpdate < 30000; // 30 segundos
 

@@ -259,28 +259,19 @@ const App: React.FC = () => {
   const { loadTournaments } = useTournamentStore();
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
 
-  // Debug info
-  console.log('🔍 App Debug:', {
-    user,
-    loading,
-    error,
-    apiUrl: API_BASE_URL
-  });
+  // Debug info (temporalmente deshabilitado)
 
   // Cargar usuario al iniciar la aplicación
   useEffect(() => {
-    console.log('🚀 App: Iniciando carga inicial de usuario');
     loadUser();
   }, [loadUser]); // Sin dependencias para evitar bucles
 
   // Mostrar mensaje de éxito cuando el usuario se autentica
   useEffect(() => {
     if (user) {
-      console.log('🎉 App: Usuario autenticado, mostrando mensaje de bienvenida');
       setShowSuccessMessage(true);
       // Ocultar mensaje después de 2 segundos y permitir que avance
       const timer = setTimeout(() => {
-        console.log('⏰ App: Ocultando mensaje de bienvenida, avanzando al dashboard');
         setShowSuccessMessage(false);
       }, 2000);
       
@@ -357,7 +348,6 @@ npm run dev`}
   }
 
   // Usuario autenticado, mostrar aplicación principal
-  console.log('🔍 App: Usuario autenticado, renderizando aplicación principal');
   
   // Si está mostrando el mensaje de éxito, mostrarlo
   if (showSuccessMessage) {
@@ -410,7 +400,6 @@ npm run dev`}
             <Route path="/dashboard" element={
               (() => {
                 try {
-                  console.log('🔍 App: Renderizando ruta /dashboard');
                   return <Dashboard />;
                 } catch (error) {
                   console.error('🚨 App: Error renderizando Dashboard:', error);

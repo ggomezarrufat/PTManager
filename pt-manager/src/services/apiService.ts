@@ -14,28 +14,14 @@ const getApiBaseUrl = () => {
   const apiUrl = process.env.REACT_APP_API_URL || process.env.REACT_APP_API_BASE_URL;
   
   if (apiUrl) {
-    console.log('🔧 API URL from environment variables:', apiUrl);
     return apiUrl;
   }
 
   // Fallback solo si no hay variables de entorno configuradas
-  console.log('⚠️ No REACT_APP_API_URL or REACT_APP_API_BASE_URL configured, falling back to window.location.origin');
   return window.location.origin;
 };
 
 export const API_BASE_URL = getApiBaseUrl();
-
-// Debug: Log detallado de la URL de la API
-console.log('🔍 API Service Debug:', {
-  REACT_APP_API_URL: process.env.REACT_APP_API_URL,
-  REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
-  API_BASE_URL: API_BASE_URL,
-  NODE_ENV: process.env.NODE_ENV,
-  window_origin: typeof window !== 'undefined' ? window.location.origin : 'N/A'
-});
-
-// Log adicional para confirmar configuración
-console.log('🔧 API_BASE_URL configurado:', API_BASE_URL);
 
 // Custom error class for API errors
 export class ApiError extends Error {
@@ -58,17 +44,6 @@ async function apiRequest<T>(
   const maxRetries = 1; // Reducir de 3 a 1 para evitar rate limiting agresivo
   let retryCount = 0;
 
-  // Debug de autenticación en producción
-  if (process.env.NODE_ENV === 'production') {
-    console.log('🔐 Production Auth Debug:', {
-      endpoint,
-      hasToken: !!token,
-      tokenPreview: token ? `${token.substring(0, 10)}...` : 'none',
-      API_BASE_URL,
-      window_origin: typeof window !== 'undefined' ? window.location.origin : 'N/A'
-    });
-  }
-
   const config: RequestInit = {
     headers: {
       'Content-Type': 'application/json',
@@ -80,7 +55,7 @@ async function apiRequest<T>(
 
   while (retryCount <= maxRetries) {
     try {
-      // Debug: log de la llamada cuando se crea un torneo
+      // Log compacto y claro (deshabilitado en producción)
       const method = (config.method || 'GET').toString().toUpperCase();
       if (endpoint === '/api/tournaments' && method === 'POST') {
         const maskedHeaders: Record<string, unknown> = { ...(config.headers as Record<string, unknown>) };
@@ -94,14 +69,7 @@ async function apiRequest<T>(
         } catch {
           bodyPreview = config.body;
         }
-        // Log compacto y claro
-        // eslint-disable-next-line no-console
-        console.log('🛰️ API Request (Create Tournament):', {
-          url: `${API_BASE_URL}${endpoint}`,
-          method,
-          headers: maskedHeaders,
-          body: bodyPreview,
-        });
+        // Log compacto y claro (deshabilitado en producción)
       }
 
       let response = await fetch(`${API_BASE_URL}${endpoint}`, config);
@@ -109,22 +77,9 @@ async function apiRequest<T>(
       if (!response.ok) {
         // Intentar refresh en 401 y reintentar una vez
         if (response.status === 401 && !(options as any)._retried) {
-          if (process.env.NODE_ENV === 'production') {
-            console.log('🔒 Production 401 Error:', {
-              endpoint,
-              currentToken: localStorage.getItem('authToken') ? 'exists' : 'missing',
-              attemptingRefresh: true
-            });
-          }
-          
           const refreshed = await tryRefreshToken();
           if (refreshed) {
             const token = localStorage.getItem('authToken');
-            if (process.env.NODE_ENV === 'production') {
-              console.log('🔄 Token refreshed successfully:', {
-                newToken: token ? 'exists' : 'missing'
-              });
-            }
             
             const retryConfig: RequestInit = {
               ...config,
@@ -135,9 +90,6 @@ async function apiRequest<T>(
             };
             response = await fetch(`${API_BASE_URL}${endpoint}`, { ...retryConfig, _retried: true } as any);
           } else {
-            if (process.env.NODE_ENV === 'production') {
-              console.log('❌ Token refresh failed, clearing auth state');
-            }
             // Limpiar tokens inválidos
             localStorage.removeItem('authToken');
             localStorage.removeItem('refreshToken');
@@ -148,7 +100,6 @@ async function apiRequest<T>(
         if (response.status === 429 && retryCount < maxRetries) {
           retryCount++;
           const delay = Math.pow(2, retryCount) * 3000; // Backoff exponencial: 3s, 6s (más tiempo entre reintentos)
-          console.log(`🔄 Rate limit alcanzado, reintentando en ${delay/1000}s... (intento ${retryCount}/${maxRetries})`);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }
@@ -163,7 +114,6 @@ async function apiRequest<T>(
         if (response.status === 404) {
           errorMessage = `No se encontró la ruta en el backend (${API_BASE_URL}${endpoint}). Verifica REACT_APP_API_URL y que la API esté corriendo.`;
         }
-        // eslint-disable-next-line no-console
         if (endpoint === '/api/tournaments' && method === 'POST') {
           console.error('🛑 API Error (Create Tournament):', {
             url: `${API_BASE_URL}${endpoint}`,
@@ -213,13 +163,6 @@ const authService = {
 
     if (response.session?.access_token) {
       localStorage.setItem('authToken', response.session.access_token);
-      if (process.env.NODE_ENV === 'production') {
-        console.log('🔐 Production Login Success:', {
-          hasAccessToken: !!response.session.access_token,
-          hasRefreshToken: !!response.session.refresh_token,
-          tokenPreview: response.session.access_token ? `${response.session.access_token.substring(0, 10)}...` : 'none'
-        });
-      }
     } else {
       if (process.env.NODE_ENV === 'production') {
         console.error('❌ Production Login Error: No access token in response');
@@ -246,12 +189,6 @@ const authService = {
 
     if (response.token) {
       localStorage.setItem('authToken', response.token);
-      if (process.env.NODE_ENV === 'production') {
-        console.log('🔐 Production Register Success:', {
-          hasToken: !!response.token,
-          tokenPreview: response.token ? `${response.token.substring(0, 10)}...` : 'none'
-        });
-      }
     } else {
       if (process.env.NODE_ENV === 'production') {
         console.error('❌ Production Register Error: No token in response');
@@ -273,12 +210,6 @@ const authService = {
 
   isAuthenticated() {
     const token = localStorage.getItem('authToken');
-    if (process.env.NODE_ENV === 'production') {
-      console.log('🔍 Production Auth Check:', {
-        hasToken: !!token,
-        tokenPreview: token ? `${token.substring(0, 10)}...` : 'none'
-      });
-    }
     return !!token;
   },
 };
@@ -486,6 +417,16 @@ const tournamentService = {
       method: 'DELETE',
     });
   },
+
+  async resetClock(tournamentId: string) {
+    return await apiRequest<{
+      success: boolean;
+      message: string;
+      clock: any;
+    }>(`/api/tournaments/${tournamentId}/clock/reset`, {
+      method: 'POST',
+    });
+  },
 };
 
 // Player Service
@@ -511,20 +452,14 @@ const playerService = {
     });
   },
 
-  async eliminatePlayer(playerId: string, position?: number, eliminatedBy?: string, pointsEarned?: number) {
-    const body: any = {};
+  async eliminatePlayer(playerId: string, tournamentId: string, position?: number, eliminatedBy?: string, pointsEarned?: number) {
+    const body: any = {
+      tournament_id: tournamentId
+    };
 
     if (position !== undefined) body.final_position = position;
     if (eliminatedBy) body.eliminated_by = eliminatedBy;
     if (pointsEarned !== undefined) body.points_earned = pointsEarned;
-
-    console.log('🔍 API Service - eliminatePlayer - Body preparado:', body);
-    console.log('🔍 API Service - eliminatePlayer - Parámetros recibidos:', {
-      playerId,
-      position,
-      eliminatedBy,
-      pointsEarned
-    });
 
     return await apiRequest<{
       message: string;
@@ -702,7 +637,10 @@ const healthService = {
 
 // Reports Service
 const reportsService = {
-  async getLeaderboard() {
+  async getLeaderboard(season?: string) {
+    const endpoint = season 
+      ? `/api/reports/leaderboard?season=${encodeURIComponent(season)}`
+      : '/api/reports/leaderboard';
     return await apiRequest<{
       leaderboard: {
         user_id: string;
@@ -713,7 +651,7 @@ const reportsService = {
         total_points: number;
         tournaments_played: number;
       }[];
-    }>('/api/reports/leaderboard');
+    }>(endpoint);
   },
   async getPlayerTournaments(userId: string) {
     return await apiRequest<{

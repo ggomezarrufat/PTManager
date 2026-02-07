@@ -57,3 +57,5 @@ SELECT
   last_updated
 FROM public.tournament_clocks 
 LIMIT 5;
+
+

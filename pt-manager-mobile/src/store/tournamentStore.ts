@@ -660,4 +660,20 @@ export const useTournamentStore = create<TournamentStore>((set, get) => ({
       set({ error: error.message, loading: false });
     }
   },
+
+  // Sincronización periódica del reloj del torneo
+  syncClockPeriodically: async (tournamentId: string) => {
+    const intervalId = setInterval(async () => {
+      try {
+        const response = await tournamentService.getTournamentClock(tournamentId);
+        if (response.clock) {
+          set({ clock: response.clock });
+        }
+      } catch (error: any) {
+        console.log('❌ Error en sincronización periódica del reloj:', error);
+      }
+    }, 5000); // Cada 5 segundos
+
+    return intervalId;
+  },
 }));

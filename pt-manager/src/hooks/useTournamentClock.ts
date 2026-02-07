@@ -61,7 +61,6 @@ export const useTournamentClock = ({
   const startLocalTimer = useCallback((initialSeconds: number) => {
     stopLocalTimer();
 
-    console.log(`⏰ Iniciando timer local con ${initialSeconds}s`);
 
     localTimerRef.current = setInterval(() => {
       setClockState(prev => {
@@ -71,7 +70,6 @@ export const useTournamentClock = ({
 
         // Si llega a cero, detener el timer local y esperar actualización del servidor
         if (newTime === 0) {
-          console.log('⏰ Timer local llegó a cero - esperando cambio automático de nivel');
           stopLocalTimer();
         }
 
@@ -81,7 +79,6 @@ export const useTournamentClock = ({
   }, [stopLocalTimer]);
 
   const updateLocalTimer = useCallback((newSeconds: number) => {
-    console.log(`🔄 Actualizando timer local a ${newSeconds}s`);
     setClockState(prev => prev ? { ...prev, time_remaining_seconds: newSeconds } : null);
   }, []);
 
@@ -111,17 +108,12 @@ export const useTournamentClock = ({
         const stateChanged = JSON.stringify(lastKnownStateRef.current) !== JSON.stringify(newClockState);
 
         if (stateChanged) {
-          console.log('🔄 Estado del reloj actualizado desde servidor:', newClockState);
-          console.log('   Estado anterior:', lastKnownStateRef.current);
-          console.log('   Estado nuevo:', newClockState);
-          console.log('   ¿Cambio de nivel?', lastKnownStateRef.current?.current_level !== newClockState.current_level);
           setClockState(newClockState);
           clockStateRef.current = newClockState;
           lastKnownStateRef.current = newClockState;
 
           // Verificar si cambió el nivel
           if (lastKnownStateRef.current && lastKnownStateRef.current.current_level !== newClockState.current_level) {
-            console.log(`🎯 ¡NIVEL CAMBIADO! ${lastKnownStateRef.current.current_level} → ${newClockState.current_level}`);
             onLevelChanged?.({
               tournament_id: newClockState.tournament_id,
               new_level: newClockState.current_level,
@@ -164,7 +156,6 @@ export const useTournamentClock = ({
     if (!tournamentId || !userId) return;
 
     try {
-      console.log(`👥 Uniéndose al torneo ${tournamentId} como usuario ${userId}`);
 
       const response = await fetch(API_URLS.CLOCK.JOIN, {
         method: 'POST',
@@ -177,10 +168,8 @@ export const useTournamentClock = ({
       const data = await response.json();
 
       if (data.success) {
-        console.log('✅ Unido al torneo exitosamente');
 
         if (data.clockState) {
-          console.log('🎯 Estado inicial del reloj:', data.clockState);
           setClockState(data.clockState);
           clockStateRef.current = data.clockState;
           lastKnownStateRef.current = data.clockState;
@@ -195,8 +184,8 @@ export const useTournamentClock = ({
         setConnectionStatus('connected');
         setError(null);
 
-        // Iniciar polling cada 60 segundos para reducir carga del servidor
-        pollingIntervalRef.current = setInterval(pollClockState, 60000);
+        // Iniciar polling cada 5 segundos para mejor sincronización
+        pollingIntervalRef.current = setInterval(pollClockState, 5000);
 
       } else {
         console.error('Error uniéndose al torneo:', data.error);
@@ -212,28 +201,17 @@ export const useTournamentClock = ({
   }, [tournamentId, userId, startLocalTimer, pollClockState]);
 
   useEffect(() => {
-    console.log('🐛 useEffect principal: Ejecutando...');
-    console.log('   Dependencies:', { tournamentId, userId, joinTournament, stopPolling });
 
     if (!tournamentId || !userId) {
-      console.log('⏸️ useEffect principal: Esperando tournamentId y userId para inicializar reloj');
       stopPolling(); // Ensure polling is stopped if dependencies are not ready
       return;
     }
-
-    console.log('🚀 Inicializando hook de reloj para torneo:', tournamentId);
-    console.log('📊 Variables de entorno:', {
-      REACT_APP_API_BASE_URL: process.env.REACT_APP_API_BASE_URL,
-      REACT_APP_API_URL: process.env.REACT_APP_API_URL,
-      NODE_ENV: process.env.NODE_ENV
-    });
 
     setConnectionStatus('connecting');
     joinTournament();
 
     // Cleanup
     return () => {
-      console.log('🧹 Limpiando hook de reloj para tournamentId:', tournamentId);
       stopPolling();
       setClockState(null); // Clear clock state on cleanup
       clockStateRef.current = null;
@@ -280,7 +258,6 @@ export const useTournamentClock = ({
     }
 
     try {
-      console.log(`⏸️ Pausando reloj para torneo: ${tournamentId}`);
 
       const response = await fetch(API_URLS.CLOCK.PAUSE, {
         method: 'POST',
@@ -296,7 +273,6 @@ export const useTournamentClock = ({
       const data = await response.json();
 
       if (data.success) {
-        console.log('✅ Reloj pausado exitosamente');
 
         // Actualizar estado local inmediatamente
         setClockState(prev => {
@@ -333,7 +309,6 @@ export const useTournamentClock = ({
     }
 
     try {
-      console.log(`▶️ Reanudando reloj para torneo: ${tournamentId}`);
 
       const response = await fetch(API_URLS.CLOCK.RESUME, {
         method: 'POST',
@@ -349,7 +324,6 @@ export const useTournamentClock = ({
       const data = await response.json();
 
       if (data.success) {
-        console.log('✅ Reloj reanudado exitosamente');
 
         // Actualizar estado local inmediatamente
         setClockState(prev => {
@@ -391,7 +365,6 @@ export const useTournamentClock = ({
     }
 
     try {
-      console.log(`🔄 Ajustando tiempo del reloj para torneo: ${tournamentId} a ${newSeconds} segundos`);
 
       const response = await fetch(API_URLS.CLOCK.ADJUST, {
         method: 'POST',
@@ -404,7 +377,6 @@ export const useTournamentClock = ({
       const data = await response.json();
 
       if (data.success) {
-        console.log('✅ Tiempo del reloj ajustado exitosamente');
 
         // Actualizar estado local inmediatamente
         setClockState(prev => {
@@ -434,7 +406,6 @@ export const useTournamentClock = ({
 
   // Función para forzar reconexión (reiniciar polling)
   const reconnect = useCallback(() => {
-    console.log('🔄 Forzando reconexión manual...');
     stopPolling();
 
     // Reiniciar la conexión después de un breve delay

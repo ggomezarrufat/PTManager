@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  AppState,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -36,6 +37,7 @@ const ClockScreen: React.FC = ({ route, navigation }: any) => {
   } = useTournamentStore();
   const [refreshing, setRefreshing] = useState(false);
   const statsRefreshInterval = useRef<NodeJS.Timeout | null>(null);
+  const clockSyncInterval = useRef<NodeJS.Timeout | null>(null);
 
   // Función para refrescar solo las estadísticas
   const refreshStats = async () => {
@@ -57,12 +59,24 @@ const ClockScreen: React.FC = ({ route, navigation }: any) => {
         await loadPlayers(tournamentId); // Cargar jugadores primero
         await loadClock(tournamentId);
         await loadTournamentStats(tournamentId); // Luego las estadísticas
+
+        // Iniciar sincronización periódica del reloj cada 5 segundos
+        clockSyncInterval.current = setInterval(async () => {
+          await loadClock(tournamentId);
+        }, 5000);
       };
       loadData();
     } else {
       // Si no hay tournamentId, cargar todos los torneos
       loadTournaments();
     }
+
+    return () => {
+      if (clockSyncInterval.current) {
+        clearInterval(clockSyncInterval.current);
+        clockSyncInterval.current = null;
+      }
+    };
   }, [tournamentId]);
 
   const onRefresh = async () => {
@@ -94,6 +108,21 @@ const ClockScreen: React.FC = ({ route, navigation }: any) => {
         }
       };
     }
+  }, [tournamentId]);
+
+  // Manejo de AppState: sincronizar reloj cuando la app vuelve al primer plano
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active' && tournamentId) {
+        // App volvió al primer plano - sincronizar inmediatamente
+        console.log('📱 App volvió al primer plano, sincronizando reloj...');
+        loadClock(tournamentId);
+      }
+    });
+
+    return () => {
+      subscription?.remove();
+    };
   }, [tournamentId]);
 
   // Si hay un torneo específico, mostrar su reloj

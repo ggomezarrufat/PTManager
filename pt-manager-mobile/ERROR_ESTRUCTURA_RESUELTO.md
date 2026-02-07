@@ -86,3 +86,5 @@ El error de "Cannot read property 'length' of undefined" ha sido **completamente
 
 ¡La aplicación PT Manager Mobile está ahora completamente estable y funcional!
 
+
+

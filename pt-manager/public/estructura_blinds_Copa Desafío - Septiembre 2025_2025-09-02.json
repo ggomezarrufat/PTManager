@@ -39,7 +39,7 @@
       "duration_minutes": 20
     },
     {
-      "level": pausa,
+      "level": 6,
       "small_blind": 600,
       "big_blind": 1200,
       "duration_minutes": 15
@@ -166,6 +166,5 @@
     "rebuy_chips": 25000,
     "addon_chips": 50000,
     "max_rebuys": 3
-    "last_level_rebuy": 6
   }
 }

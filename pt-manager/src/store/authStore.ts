@@ -31,11 +31,9 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
 
   signOut: async () => {
     try {
-      console.log('🚪 AuthStore: Cerrando sesión...');
       set({ loading: true });
       await authService.logout();
       set({ user: null, error: null });
-      console.log('✅ AuthStore: Sesión cerrada exitosamente');
     } catch (error) {
       console.error('❌ AuthStore: Error cerrando sesión:', error);
       set({ error: error instanceof Error ? error.message : 'Error signing out' });
@@ -46,7 +44,6 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
 
   login: async (email: string, password: string) => {
     try {
-      console.log('🔐 AuthStore: Iniciando login...');
       set({ loading: true, error: null });
       
       const response = await authService.login(email, password);
@@ -56,7 +53,6 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
       }
       set({ user: response.user, error: null });
       
-      console.log('✅ AuthStore: Login exitoso');
     } catch (error: unknown) {
       console.error('❌ AuthStore: Error en login:', error);
       const errorMessage = error instanceof ApiError 
@@ -72,14 +68,12 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
 
   register: async (email: string, password: string, name: string, nickname?: string) => {
     try {
-      console.log('📝 AuthStore: Iniciando registro...');
       set({ loading: true, error: null });
       
       const response = await authService.register({ email, password, name, nickname });
       
       // Auto-login después del registro
       set({ user: response.user, error: null });      
-      console.log('✅ AuthStore: Registro completado');
     } catch (error: unknown) {
       console.error('❌ AuthStore: Error en registro:', error);
       const errorMessage = error instanceof ApiError 
@@ -94,34 +88,27 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
 
   loadUser: async () => {
     try {
-      console.log('🔄 AuthStore: Iniciando loadUser...');
       set({ loading: true, error: null });
       
       // Verificar si hay token almacenado
       if (!authService.isAuthenticated()) {
-        console.log('🚫 AuthStore: No hay token de autenticación');
         set({ user: null });
         return;
       }
       
-      console.log('🔍 AuthStore: Token encontrado, obteniendo usuario...');
       const response = await authService.getCurrentUser(); const user = response.user;
       
       if (user) {
-        console.log('👤 AuthStore: Usuario obtenido:', user.email);
         set({ user });
       } else {
-        console.log('🚫 AuthStore: No se pudo obtener usuario');
         set({ user: null });
       }
       
-      console.log('✅ AuthStore: loadUser completado exitosamente');
     } catch (error: unknown) {
       console.error('❌ AuthStore: Error en loadUser:', error);
       
       if (error instanceof ApiError && error.status === 401) {
         // Token inválido, limpiar estado
-        console.log('🔒 AuthStore: Token inválido, limpiando sesión');
         set({ user: null, error: null });
       } else {
         set({ 
@@ -130,7 +117,6 @@ export const useAuthStore = create<AuthState & AuthActions>((set, get) => ({
         });
       }
     } finally {
-      console.log('🏁 AuthStore: Finalizando loadUser, loading = false');
       set({ loading: false });
     }
   }

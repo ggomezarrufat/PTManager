@@ -42,7 +42,6 @@ import ImageCarousel from '../components/ui/ImageCarousel';
 import { reportsService, playerService } from '../services/apiService';
 
 const Dashboard: React.FC = () => {
-  console.log('🔍 Dashboard: Componente montándose...');
   
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -53,13 +52,6 @@ const Dashboard: React.FC = () => {
     loadTournaments 
   } = useTournamentStore();
   
-  console.log('🔍 Dashboard: Estado inicial:', {
-    user: !!user,
-    tournamentsCount: tournaments?.length || 0,
-    loading,
-    error
-  });
-
   // Estado para manejar inscripciones y jugadores
   const [inscriptions, setInscriptions] = useState<{[key: string]: boolean}>({});
   const [playerCounts, setPlayerCounts] = useState<{[key: string]: number}>({});
@@ -82,9 +74,6 @@ const Dashboard: React.FC = () => {
   const [playerHistoryLoading, setPlayerHistoryLoading] = useState(false);
 
   useEffect(() => {
-    console.log('🔍 Dashboard: useEffect ejecutándose...');
-    console.log('🔍 Dashboard: loadTournaments disponible:', !!loadTournaments);
-    console.log('🔍 Dashboard: loadLeaderboard disponible:', !!loadLeaderboard);
     
     loadTournaments();
     loadLeaderboard();
@@ -94,33 +83,15 @@ const Dashboard: React.FC = () => {
 
   const loadLeaderboard = async () => {
     try {
-      console.log('🔍 Dashboard: Iniciando carga del leaderboard...');
       setLeaderboardLoading(true);
       setLeaderboardError(null);
       const response = await reportsService.getLeaderboard();
-      console.log('📊 Dashboard: Leaderboard cargado:', {
-        hasData: !!response.leaderboard,
-        count: response.leaderboard?.length || 0,
-        data: response.leaderboard
-      });
-      
-      // Debug: Verificar avatares en el leaderboard
-      if (response.leaderboard) {
-        response.leaderboard.forEach((entry, index) => {
-          console.log(`👤 Usuario ${index + 1}:`, {
-            name: entry.name,
-            hasAvatar: !!entry.avatar_url,
-            avatarUrl: entry.avatar_url
-          });
-        });
-      }
       setLeaderboard(response.leaderboard);
     } catch (err) {
       console.error('❌ Dashboard: Error cargando leaderboard:', err);
       setLeaderboardError(err instanceof Error ? err.message : 'Error al cargar la tabla de posiciones');
     } finally {
       setLeaderboardLoading(false);
-      console.log('🏁 Dashboard: Leaderboard loading completado');
     }
   };
 
@@ -130,7 +101,6 @@ const Dashboard: React.FC = () => {
       setSelectedPlayer(player);
       setPlayerHistoryOpen(true);
       
-      console.log('🔍 Dashboard: Cargando historial para jugador:', player.name);
       
       const response = await reportsService.getPlayerTournaments(player.user_id);
       const tournaments = response.tournaments || [];
@@ -141,12 +111,6 @@ const Dashboard: React.FC = () => {
       );
       
       setPlayerHistory(sortedTournaments);
-      
-      console.log('✅ Dashboard: Historial cargado:', {
-        player: player.name,
-        tournamentsCount: sortedTournaments.length,
-        tournaments: sortedTournaments
-      });
     } catch (err) {
       console.error('❌ Dashboard: Error cargando historial del jugador:', err);
       setPlayerHistory([]);
@@ -247,7 +211,6 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  console.log('🔍 Dashboard: Renderizando componente...');
   
   return (
     <Box>
@@ -410,16 +373,6 @@ const Dashboard: React.FC = () => {
         </Typography>
         <Card>
           <CardContent>
-            {(() => {
-              console.log('🔍 Dashboard Render: Estado del leaderboard:', {
-                loading: leaderboardLoading,
-                error: leaderboardError,
-                hasData: leaderboard.length > 0,
-                count: leaderboard.length,
-                data: leaderboard
-              });
-              return null;
-            })()}
             {leaderboardLoading ? (
               <Box display="flex" justifyContent="center" alignItems="center" minHeight="100px">
                 <CircularProgress />
@@ -484,10 +437,8 @@ const Dashboard: React.FC = () => {
                               bgcolor: entry.avatar_url ? 'transparent' : 'primary.main'
                             }}
                             onError={() => {
-                              console.log('❌ Error cargando avatar para usuario:', entry.name, 'URL:', entry.avatar_url);
                             }}
                             onLoad={() => {
-                              console.log('✅ Avatar cargado exitosamente para usuario:', entry.name, 'URL:', entry.avatar_url);
                             }}
                           >
                             {(!entry.avatar_url || entry.avatar_url === '') && (

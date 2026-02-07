@@ -13,6 +13,7 @@ import { useTournamentStore } from '../store/tournamentStore';
 import { TournamentClock as TournamentClockType, Tournament } from '../types';
 import { useTournamentSounds } from '../hooks/useTournamentSounds';
 import TimeAdjustModal from './TimeAdjustModal';
+import tournamentService from '../services/tournamentService';
 
 interface TournamentClockProps {
   tournamentId: string;
@@ -49,6 +50,8 @@ const TournamentClock: React.FC<TournamentClockProps> = ({
   const [isPaused, setIsPaused] = useState(false);
   const [soundsEnabled, setSoundsEnabled] = useState(false);
   const [showTimeAdjustModal, setShowTimeAdjustModal] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+  const [isSyncing, setIsSyncing] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const timePulseAnim = useRef(new Animated.Value(1)).current;
@@ -70,17 +73,11 @@ const TournamentClock: React.FC<TournamentClockProps> = ({
     }
   }, [clock]);
 
+  // Timer local solo para interpolación visual - sin lógica de negocio
   useEffect(() => {
     if (!isPaused && timeRemaining > 0) {
       intervalRef.current = setInterval(() => {
-        setTimeRemaining(prev => {
-          if (prev <= 1) {
-            // Tiempo agotado, cambiar de nivel
-            handleLevelComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
+        setTimeRemaining(prev => Math.max(0, prev - 1));
       }, 1000);
     } else {
       if (intervalRef.current) {
@@ -95,6 +92,35 @@ const TournamentClock: React.FC<TournamentClockProps> = ({
       }
     };
   }, [isPaused, timeRemaining]);
+
+  // Polling periódico para sincronizar con el servidor cada 5 segundos
+  useEffect(() => {
+    if (!tournamentId) return;
+
+    const pollInterval = setInterval(async () => {
+      setIsSyncing(true);
+      try {
+        const response = await tournamentService.getTournamentClock(tournamentId);
+        if (response.clock) {
+          // Sincronizar con servidor - el servidor es la fuente de verdad
+          setTimeRemaining(response.clock.time_remaining_seconds);
+          setIsPaused(response.clock.is_paused);
+          setLastSyncTime(new Date());
+          
+          // Notificar cambio de nivel si ocurrió
+          if (clock && clock.current_level !== response.clock.current_level) {
+            onLevelChange?.();
+          }
+        }
+      } catch (error) {
+        console.log('Error sincronizando reloj:', error);
+      } finally {
+        setIsSyncing(false);
+      }
+    }, 5000); // Cada 5 segundos
+
+    return () => clearInterval(pollInterval);
+  }, [tournamentId, clock?.current_level, onLevelChange]);
 
   const handleLevelComplete = () => {
     // Animación de pulso cuando cambia el nivel
@@ -341,6 +367,18 @@ const TournamentClock: React.FC<TournamentClockProps> = ({
           >
             {formatTime(timeRemaining)}
           </Animated.Text>
+        </View>
+
+        {/* Indicador de sincronización */}
+        <View style={styles.syncIndicator}>
+          <Ionicons 
+            name={isSyncing ? "sync" : "checkmark-circle"} 
+            size={16} 
+            color={isSyncing ? "#FFA500" : "#4CAF50"} 
+          />
+          <Text style={styles.syncText}>
+            Sincronizado hace {Math.floor((Date.now() - lastSyncTime.getTime()) / 1000)}s
+          </Text>
         </View>
 
         {/* Estadísticas del torneo */}
@@ -674,6 +712,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#b0b0b0',
     textAlign: 'center',
+  },
+  syncIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#0c0c0c',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#333',
+    marginBottom: 12,
+  },
+  syncText: {
+    fontSize: 12,
+    color: '#b0b0b0',
+    marginLeft: 6,
   },
 });
 

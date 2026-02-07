@@ -72,7 +72,6 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
       if (result.success && result.url) {
         // Actualizar la base de datos con la nueva URL del avatar
         await avatarService.updateProfileAvatar(userId, result.url);
-        console.log('✅ Avatar actualizado en base de datos:', result.url);
         
         // Notificar al componente padre del cambio
         onAvatarChange(result.url);
@@ -112,7 +111,6 @@ const AvatarUpload: React.FC<AvatarUploadProps> = ({
         // Notificar al componente padre del cambio
         onAvatarChange(null);
         setShowDeleteDialog(false);
-        console.log('✅ Avatar eliminado de base de datos');
       } else {
         setError(result.error || 'Error al eliminar el avatar');
       }

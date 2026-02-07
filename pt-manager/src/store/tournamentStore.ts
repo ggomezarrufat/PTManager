@@ -38,7 +38,7 @@ interface TournamentActions {
   
   loadPlayers: (tournamentId: string) => Promise<void>;
   addPlayer: (tournamentId: string, playerData: any) => Promise<void>;
-  eliminatePlayer: (playerId: string, position: number, eliminatedBy: string, pointsEarned?: number) => Promise<void>;
+  eliminatePlayer: (tournamentId: string, playerId: string, position: number, eliminatedBy: string, pointsEarned?: number) => Promise<void>;
   
   loadClock: (tournamentId: string) => Promise<void>;
   togglePause: (tournamentId: string) => Promise<void>;
@@ -172,9 +172,9 @@ export const useTournamentStore = create<TournamentState & TournamentActions>((s
     }
   },
 
-  eliminatePlayer: async (playerId: string, position: number, eliminatedBy: string, pointsEarned?: number) => {
+  eliminatePlayer: async (tournamentId: string, playerId: string, position: number, eliminatedBy: string, pointsEarned?: number) => {
     try {
-      await playerService.eliminatePlayer(playerId, position, eliminatedBy, pointsEarned);
+      await playerService.eliminatePlayer(playerId, tournamentId, position, eliminatedBy, pointsEarned);
 
       // Actualizar estado local
       set((state) => ({

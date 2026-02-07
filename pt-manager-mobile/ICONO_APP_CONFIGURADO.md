@@ -84,3 +84,5 @@ Para verificar que todo esté funcionando:
 
 ¡El icono de la aplicación PT Manager Mobile está ahora correctamente configurado y debería ser visible en el emulador de iPhone!
 
+
+

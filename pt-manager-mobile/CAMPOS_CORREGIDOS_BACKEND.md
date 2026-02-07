@@ -167,3 +167,5 @@ La aplicación móvil ahora envía exactamente los mismos campos que espera el b
 
 ¡La creación de torneos debería funcionar perfectamente ahora!
 
+
+

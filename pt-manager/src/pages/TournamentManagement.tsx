@@ -142,13 +142,6 @@ const TournamentManagement: React.FC = () => {
     if (!selectedPlayerForRebuy || !currentTournament) return;
 
     try {
-      console.log('🔄 Intentando registrar rebuy desde TournamentManagement:', {
-        selectedPlayerForRebuy,
-        userId: user?.id,
-        userName: user?.name,
-        isAuthenticated: !!user
-      });
-
       if (!user?.id) {
         throw new Error('Usuario no autenticado - no se puede registrar el rebuy');
       }
@@ -182,13 +175,6 @@ const TournamentManagement: React.FC = () => {
     if (!selectedPlayerForAddon || !currentTournament) return;
 
     try {
-      console.log('🔄 Intentando registrar addon desde TournamentManagement:', {
-        selectedPlayerForAddon,
-        userId: user?.id,
-        userName: user?.name,
-        isAuthenticated: !!user
-      });
-
       if (!user?.id) {
         throw new Error('Usuario no autenticado - no se puede registrar el addon');
       }
@@ -219,38 +205,24 @@ const TournamentManagement: React.FC = () => {
   };
 
   const handleElimination = async () => {
-    if (!selectedPlayerForElimination) return;
+    if (!selectedPlayerForElimination || !currentTournament?.id) return;
 
     try {
-      console.log('🔄 Intentando eliminar jugador desde TournamentManagement:', {
-        selectedPlayerForElimination,
-        eliminationPosition,
-        eliminationPoints,
-        userId: user?.id,
-        userName: user?.name,
-        isAuthenticated: !!user
-      });
-
       if (!user?.id) {
         throw new Error('Usuario no autenticado - no se puede eliminar el jugador');
       }
 
       // Llamar al servicio con los valores calculados (pueden ser modificados por el admin)
-      const result = await playerService.eliminatePlayer(
+      await playerService.eliminatePlayer(
         selectedPlayerForElimination,
+        currentTournament.id,
         eliminationPosition,
         user.id,
         eliminationPoints
       );
 
       // También actualizar el estado local del store
-      useTournamentStore.getState().eliminatePlayer(selectedPlayerForElimination, eliminationPosition, user.id, eliminationPoints);
-
-      console.log('✅ Jugador eliminado exitosamente:', {
-        calculated_values: result.calculated_values,
-        final_position: eliminationPosition,
-        final_points: eliminationPoints
-      });
+      useTournamentStore.getState().eliminatePlayer(currentTournament.id, selectedPlayerForElimination, eliminationPosition, user.id, eliminationPoints);
 
       setEliminationDialogOpen(false);
       setSelectedPlayerForElimination('');
@@ -268,15 +240,6 @@ const TournamentManagement: React.FC = () => {
     if (!selectedPlayerForEdit) return;
 
     try {
-      console.log('🔄 Intentando editar jugador desde TournamentManagement:', {
-        selectedPlayerForEdit,
-        editPosition,
-        editPoints,
-        userId: user?.id,
-        userName: user?.name,
-        isAuthenticated: !!user
-      });
-
       if (!user?.id) {
         throw new Error('Usuario no autenticado - no se puede editar el jugador');
       }
@@ -288,11 +251,6 @@ const TournamentManagement: React.FC = () => {
         editPoints,
         user.id
       );
-
-      console.log('✅ Jugador editado exitosamente:', {
-        final_position: editPosition,
-        final_points: editPoints
-      });
 
       setEditPlayerDialogOpen(false);
       setSelectedPlayerForEdit('');

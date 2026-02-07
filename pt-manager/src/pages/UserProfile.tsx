@@ -101,26 +101,12 @@ const UserProfile: React.FC = () => {
   // Guardar cambios del perfil
   const handleSaveProfile = async () => {
     try {
-      console.log('🔄 UserProfile: Iniciando guardado de perfil...');
-      console.log('📝 UserProfile: Datos a guardar:', {
-        userId: user?.id,
-        name: editForm.name,
-        nickname: editForm.nickname
-      });
-
       // Verificar si el perfil existe antes de actualizar
       const { data: existingProfile, error: checkError } = await supabase
         .from('profiles')
         .select('id, name, nickname, email')
         .eq('id', user?.id)
         .single();
-
-      console.log('🔍 UserProfile: Verificando perfil existente:', { 
-        existingProfile, 
-        checkError,
-        userIdType: typeof user?.id,
-        userId: user?.id 
-      });
 
       if (!existingProfile) {
         throw new Error('El perfil no existe en la base de datos');
@@ -139,14 +125,10 @@ const UserProfile: React.FC = () => {
         .eq('id', user?.id)
         .select();
 
-      console.log('📊 UserProfile: Respuesta de Supabase:', { data, error });
 
       if (error) {
-        console.error('❌ UserProfile: Error en la actualización:', error);
         throw error;
       }
-
-      console.log('✅ UserProfile: Perfil actualizado exitosamente:', data);
 
       // Actualizar estado local
       setProfile(prev => prev ? {

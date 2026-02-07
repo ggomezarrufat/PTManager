@@ -163,3 +163,5 @@ Las funcionalidades de administrador están **completamente implementadas** y fu
 
 ¡La aplicación móvil ahora tiene la misma funcionalidad de administración que la versión web!
 
+
+

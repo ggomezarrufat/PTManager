@@ -20,7 +20,6 @@ export const avatarService = {
       const fileExtension = file.name.split('.').pop();
       const fileName = `${userId}-${timestamp}.${fileExtension}`;
 
-      console.log('🔍 Subiendo avatar:', { fileName, userId, fileSize: file.size });
 
       // Subir archivo a Supabase Storage
       const { error } = await supabase.storage
@@ -35,7 +34,6 @@ export const avatarService = {
         return { success: false, error: error.message };
       }
 
-      console.log('✅ Avatar subido exitosamente:', fileName);
 
       // Obtener URL pública
       const { data: urlData } = supabase.storage
@@ -54,7 +52,6 @@ export const avatarService = {
 
   async updateProfileAvatar(userId: string, avatarUrl: string | null): Promise<void> {
     try {
-      console.log('🔍 AvatarService: Actualizando perfil con userId:', userId, 'avatarUrl:', avatarUrl);
       
       const { data, error } = await supabase
         .from('profiles')
@@ -70,7 +67,6 @@ export const avatarService = {
         throw error;
       }
 
-      console.log('✅ AvatarService: Perfil actualizado exitosamente:', data);
     } catch (error) {
       console.error('❌ Error actualizando avatar en perfil:', error);
       throw error;

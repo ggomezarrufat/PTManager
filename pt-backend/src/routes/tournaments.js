@@ -367,21 +367,29 @@ router.put('/:id/start', [
       throw updateError;
     }
 
-    // Crear reloj del torneo si tiene estructura de blinds
+    // Crear o reiniciar reloj del torneo si tiene estructura de blinds
     if (tournament.blind_structure && tournament.blind_structure.length > 0) {
       const firstLevel = tournament.blind_structure[0];
       const initialTimeSeconds = firstLevel.duration_minutes * 60;
 
+      console.log(`🕐 Inicializando reloj para torneo ${id}: Nivel 1, ${initialTimeSeconds}s (${firstLevel.duration_minutes} minutos)`);
+
+      // Usar upsert para crear o actualizar el reloj, asegurando valores correctos
       await supabase
         .from('tournament_clocks')
-        .insert({
+        .upsert({
           tournament_id: id,
           current_level: 1,
           time_remaining_seconds: initialTimeSeconds,
           is_paused: true,
           total_pause_time_seconds: 0,
           last_updated: new Date().toISOString()
+        }, {
+          onConflict: 'tournament_id',
+          ignoreDuplicates: false
         });
+
+      console.log(`✅ Reloj reinicializado correctamente para torneo ${id}`);
     }
 
     res.json({

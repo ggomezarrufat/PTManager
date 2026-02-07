@@ -14,6 +14,11 @@ const router = express.Router();
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
+ *         name: season
+ *         schema:
+ *           type: string
+ *         description: ID o nombre de la temporada (ej: "2025"). Si no se proporciona, se obtienen todos los torneos.
+ *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
@@ -175,25 +180,74 @@ const router = express.Router();
  */
 router.get('/leaderboard', authenticateToken, async (req, res, next) => {
   try {
-    console.log('🔍 Reports: Iniciando carga del leaderboard...');
+    const { season } = req.query;
+    console.log('🔍 Reports: Iniciando carga del leaderboard...', { season });
     
-    // Obtener todos los registros de tournament_players
-    const { data: tournamentPlayers, error: tpError } = await supabase
+    let tournamentIds = null;
+    
+    // Si se proporciona una temporada, filtrar torneos por temporada
+    if (season) {
+      // Buscar la temporada por ID o nombre
+      let seasonQuery = supabase
+        .from('seasons')
+        .select('id');
+      
+      // Si es un UUID, buscar por ID, si no, buscar por nombre
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(season)) {
+        seasonQuery = seasonQuery.eq('id', season);
+      } else {
+        seasonQuery = seasonQuery.eq('name', season);
+      }
+      
+      const { data: seasonData, error: seasonError } = await seasonQuery.single();
+      
+      if (seasonError || !seasonData) {
+        return res.status(404).json({
+          error: 'Season Not Found',
+          message: `Temporada "${season}" no encontrada`
+        });
+      }
+      
+      // Obtener todos los torneos de esta temporada
+      const { data: tournaments, error: tournamentsError } = await supabase
+        .from('tournaments')
+        .select('id')
+        .eq('season_id', seasonData.id);
+      
+      if (tournamentsError) {
+        console.error('Error fetching tournaments for season:', tournamentsError);
+        throw tournamentsError;
+      }
+      
+      tournamentIds = tournaments?.map(t => t.id) || [];
+      
+      if (tournamentIds.length === 0) {
+        return res.json({ leaderboard: [] });
+      }
+      
+      console.log('📅 Reports: Torneos de la temporada:', {
+        season: seasonData.id,
+        tournamentCount: tournamentIds.length
+      });
+    }
+    
+    // Obtener registros de tournament_players (filtrados por temporada si se proporciona)
+    let tournamentPlayersQuery = supabase
       .from('tournament_players')
-      .select('user_id, points_earned');
+      .select('user_id, points_earned, tournament_id');
+    
+    if (tournamentIds) {
+      tournamentPlayersQuery = tournamentPlayersQuery.in('tournament_id', tournamentIds);
+    }
+    
+    const { data: tournamentPlayers, error: tpError } = await tournamentPlayersQuery;
     
     console.log('📊 Reports: tournament_players obtenidos:', {
       hasData: !!tournamentPlayers,
       count: tournamentPlayers?.length || 0,
-      data: tournamentPlayers
+      filteredBySeason: !!season
     });
-
-    // Buscar específicamente al usuario "Carlos Javier pinto"
-    const carlosPlayer = tournamentPlayers?.find(tp => {
-      // Necesitamos verificar si este user_id corresponde a Carlos
-      return tp.user_id;
-    });
-    console.log('🔍 Reports: Buscando usuario Carlos en tournament_players:', carlosPlayer);
 
     if (tpError) {
       console.error('Error fetching tournament players for leaderboard:', tpError);

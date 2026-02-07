@@ -23,7 +23,6 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  MenuItem,
   Autocomplete
 } from '@mui/material';
 import {
@@ -56,7 +55,7 @@ const TournamentView: React.FC = () => {
   const [addPlayerDialogOpen, setAddPlayerDialogOpen] = useState(false);
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState('');
+  const [, setSelectedUserId] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const {
     currentTournament,

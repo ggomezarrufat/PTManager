@@ -72,16 +72,19 @@ const Reports: React.FC = () => {
     loadTournaments();
     loadSeasons();
     loadLeaderboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadTournaments]);
 
   useEffect(() => {
     loadLeaderboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSeason]);
 
   useEffect(() => {
     if (tournaments && tournaments.length > 0) {
       loadTournamentPlayerCounts();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournaments]);
 
   const loadSeasons = async () => {

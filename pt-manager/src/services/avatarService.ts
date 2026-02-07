@@ -53,7 +53,7 @@ export const avatarService = {
   async updateProfileAvatar(userId: string, avatarUrl: string | null): Promise<void> {
     try {
       
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({ 
           avatar_url: avatarUrl,

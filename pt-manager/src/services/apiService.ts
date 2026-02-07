@@ -63,12 +63,6 @@ async function apiRequest<T>(
           const auth = maskedHeaders.Authorization as string;
           maskedHeaders.Authorization = auth.replace(/Bearer\s+(.{3}).+/, 'Bearer $1***');
         }
-        let bodyPreview: unknown = undefined;
-        try {
-          bodyPreview = config.body ? JSON.parse(config.body as string) : undefined;
-        } catch {
-          bodyPreview = config.body;
-        }
         // Log compacto y claro (deshabilitado en producción)
       }
 

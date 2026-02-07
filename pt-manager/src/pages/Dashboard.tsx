@@ -22,7 +22,6 @@ import {
   DialogActions,
   Avatar,
   IconButton,
-  Stack
 } from '@mui/material';
 import {
   Add,

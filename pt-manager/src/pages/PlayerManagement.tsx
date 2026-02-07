@@ -62,7 +62,7 @@ const PlayerManagement: React.FC = () => {
   const [availableUsers, setAvailableUsers] = useState<User[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [addPlayerDialogOpen, setAddPlayerDialogOpen] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState('');
+  const [, setSelectedUserId] = useState('');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [eliminationDialogOpen, setEliminationDialogOpen] = useState(false);
   const [selectedPlayerForElimination, setSelectedPlayerForElimination] = useState<TournamentPlayer | null>(null);
@@ -103,6 +103,7 @@ const PlayerManagement: React.FC = () => {
 
   useEffect(() => {
     loadAvailableUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Calcular próxima posición y puntos de eliminación

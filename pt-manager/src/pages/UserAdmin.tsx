@@ -90,7 +90,8 @@ const UserAdmin: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.email, user?.is_admin]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Filtrar usuarios basado en el término de búsqueda
   useEffect(() => {
@@ -171,7 +172,7 @@ const UserAdmin: React.FC = () => {
         };
 
 
-        const updatedUser = await userService.updateUser(editingUser.id, updateData);
+        await userService.updateUser(editingUser.id, updateData);
 
 
 

@@ -102,7 +102,7 @@ const UserProfile: React.FC = () => {
   const handleSaveProfile = async () => {
     try {
       // Verificar si el perfil existe antes de actualizar
-      const { data: existingProfile, error: checkError } = await supabase
+      const { data: existingProfile } = await supabase
         .from('profiles')
         .select('id, name, nickname, email')
         .eq('id', user?.id)
@@ -115,7 +115,7 @@ const UserProfile: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('profiles')
         .update({
           name: editForm.name,

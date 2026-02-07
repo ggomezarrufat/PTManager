@@ -24,7 +24,6 @@ import {
   AccountCircle,
   Logout,
   Settings,
-  AdminPanelSettings,
   Home as HomeIcon,
   People as PeopleIcon,
   Settings as SettingsIcon,

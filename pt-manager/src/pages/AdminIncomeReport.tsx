@@ -7,27 +7,17 @@ import {
   CardContent,
   Typography,
   Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Paper,
   Chip,
   Alert,
   CircularProgress,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Divider
 } from '@mui/material';
 import {
   ArrowBack,
   Euro,
   Person,
-  ShoppingCart,
-  AddBox,
   Assessment,
   ExpandMore
 } from '@mui/icons-material';
@@ -100,14 +90,12 @@ const AdminIncomeReport: React.FC = () => {
     }).format(amount);
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('es-ES', {
-      day: '2-digit',
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  // formatDate disponible si se necesita en el futuro
+  // const formatDate = (dateString: string) => {
+  //   return new Date(dateString).toLocaleDateString('es-ES', {
+  //     day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+  //   });
+  // };
 
   if (loading) {
     return (

@@ -23,9 +23,6 @@ import {
   Divider,
   Stack,
   Avatar,
-  FormControl,
-  InputLabel,
-  Select,
   ToggleButton,
   ToggleButtonGroup
 } from '@mui/material';
@@ -245,7 +242,7 @@ const TournamentManagement: React.FC = () => {
       }
 
       // Llamar al servicio para actualizar posición y puntos
-      const result = await playerService.updatePlayerPositionAndPoints(
+      await playerService.updatePlayerPositionAndPoints(
         selectedPlayerForEdit,
         editPosition,
         editPoints,

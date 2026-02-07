@@ -397,25 +397,7 @@ npm run dev`}
         <Layout>
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={
-              (() => {
-                try {
-                  return <Dashboard />;
-                } catch (error) {
-                  console.error('🚨 App: Error renderizando Dashboard:', error);
-                  return (
-                    <Box p={3} textAlign="center">
-                      <Typography variant="h5" color="error" gutterBottom>
-                        Error al cargar el Dashboard
-                      </Typography>
-                      <Typography variant="body1">
-                        {error instanceof Error ? error.message : 'Error desconocido'}
-                      </Typography>
-                    </Box>
-                  );
-                }
-              })()
-            } />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/tournaments" element={<TournamentList />} />
             <Route path="/tournament/new" element={<CreateTournament />} />
             <Route path="/tournament/active" element={<ActiveTournamentClock />} />

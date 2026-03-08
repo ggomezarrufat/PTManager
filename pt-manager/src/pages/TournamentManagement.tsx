@@ -39,7 +39,6 @@ import {
   Casino as CasinoIcon,
   Timer as TimerIcon,
   EmojiEvents as TrophyIcon,
-  Edit as EditIcon,
   SortByAlpha as SortByNameIcon,
   EmojiEvents as SortByPositionIcon,
   DragIndicator as DragIndicatorIcon
@@ -63,7 +62,6 @@ const TournamentManagement: React.FC = () => {
     loading,
     error,
     loadTournament,
-    loadPlayers,
     startTournament,
     finishTournament,
     togglePause

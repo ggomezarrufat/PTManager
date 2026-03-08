@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -41,12 +41,13 @@ import {
   EmojiEvents as TrophyIcon,
   Edit as EditIcon,
   SortByAlpha as SortByNameIcon,
-  EmojiEvents as SortByPositionIcon
+  EmojiEvents as SortByPositionIcon,
+  DragIndicator as DragIndicatorIcon
 } from '@mui/icons-material';
 import { useTournamentStore } from '../store/tournamentStore';
 import { useAuthStore } from '../store/authStore';
-import { playerService, rebuyService, addonService } from '../services/apiService';
-import { getUserDisplayName } from '../utils/userUtils';
+import { playerService, rebuyService, addonService, tournamentService } from '../services/apiService';
+import { getUserDisplayName, getUserFullName } from '../utils/userUtils';
 import { isValidUUID } from '../utils/validation';
 import TournamentClock from '../components/tournament/TournamentClock';
 
@@ -62,6 +63,7 @@ const TournamentManagement: React.FC = () => {
     loading,
     error,
     loadTournament,
+    loadPlayers,
     startTournament,
     finishTournament,
     togglePause
@@ -84,6 +86,11 @@ const TournamentManagement: React.FC = () => {
   
   // Estado para ordenamiento de jugadores
   const [sortBy, setSortBy] = useState<'name' | 'position'>('name');
+
+  // Estado para resultados finales (torneo finalizado): drag and drop y guardado
+  const [draggedResultId, setDraggedResultId] = useState<string | null>(null);
+  const [dragOverResultIndex, setDragOverResultIndex] = useState<number | null>(null);
+  const [savingResults, setSavingResults] = useState(false);
 
   // Cargar torneo al montar
   useEffect(() => {
@@ -269,6 +276,49 @@ const TournamentManagement: React.FC = () => {
   const canStart = currentTournament?.status === 'scheduled' && players.length > 0;
   const canPause = currentTournament?.status === 'active';
   const canFinish = isAdmin && (currentTournament?.status !== 'finished');
+
+  // Para torneo finalizado: jugadores ordenados por posición final (una sola columna)
+  const finishedOrderedPlayers = useMemo(() => {
+    return [...players].sort((a, b) => {
+      const posA = a.final_position ?? 9999;
+      const posB = b.final_position ?? 9999;
+      return posA - posB;
+    });
+  }, [players]);
+
+  const handleFinishedOrderDrop = async (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || !currentTournament?.id) return;
+    const reordered = [...finishedOrderedPlayers];
+    const [removed] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, removed);
+    const totalPlayers = reordered.length;
+    const results = reordered.map((p, i) => {
+      const final_position = i + 1;
+      const points_earned = totalPlayers - final_position + 1;
+      return { player_id: p.id, final_position, points_earned };
+    });
+    setSavingResults(true);
+    try {
+      await tournamentService.updateTournamentResults(currentTournament.id, results);
+      await loadTournament(currentTournament.id);
+    } catch (err) {
+      console.error('Error actualizando orden de resultados', err);
+    } finally {
+      setSavingResults(false);
+      setDraggedResultId(null);
+      setDragOverResultIndex(null);
+    }
+  };
+
+  const handleInactivatePlayer = async (playerId: string) => {
+    if (!currentTournament?.id) return;
+    try {
+      await playerService.updatePlayerResults(playerId, { is_active: false });
+      await loadTournament(currentTournament.id);
+    } catch (err) {
+      console.error('Error inactivando jugador', err);
+    }
+  };
 
   // Ordenamiento de jugadores
   const sortedPlayers = [...players].sort((a, b) => {
@@ -569,7 +619,101 @@ const TournamentManagement: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Listado de jugadores con cards */}
+      {/* Resultados finales del torneo (solo cuando está finalizado): una columna, orden por posición, arrastrar para reordenar */}
+      {currentTournament.status === 'finished' && (
+        <Card sx={{ mb: 4 }}>
+          <CardContent>
+            <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
+              Resultados finales del torneo
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Arrastra una tarjeta para cambiar la posición final. Los puntos se recalculan automáticamente.
+            </Typography>
+            {finishedOrderedPlayers.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <PersonIcon sx={{ fontSize: 64, color: 'text.secondary', mb: 2 }} />
+                <Typography variant="h6" color="text.secondary">No hay jugadores</Typography>
+              </Box>
+            ) : (
+              <Stack spacing={1.5} sx={{ maxWidth: 480 }}>
+                {finishedOrderedPlayers.map((p, index) => (
+                  <Card
+                    key={p.id}
+                    draggable={!savingResults}
+                    onDragStart={(e) => {
+                      setDraggedResultId(p.id);
+                      e.dataTransfer.setData('text/plain', index.toString());
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                      setDragOverResultIndex(index);
+                    }}
+                    onDragLeave={() => setDragOverResultIndex(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                      if (fromIndex !== index) {
+                        handleFinishedOrderDrop(fromIndex, index);
+                      }
+                      setDragOverResultIndex(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedResultId(null);
+                      setDragOverResultIndex(null);
+                    }}
+                    sx={{
+                      opacity: draggedResultId === p.id ? 0.6 : 1,
+                      border: '2px solid',
+                      borderColor: dragOverResultIndex === index ? 'primary.main' : 'transparent',
+                      borderRadius: 2,
+                      transition: 'border-color 0.15s, opacity 0.15s'
+                    }}
+                  >
+                    <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+                      <Box display="flex" alignItems="center" gap={2}>
+                        <Box sx={{ cursor: savingResults ? 'default' : 'grab', color: 'text.secondary', display: 'flex', alignItems: 'center' }}>
+                          <DragIndicatorIcon fontSize="small" />
+                        </Box>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="body1" fontWeight={600}>
+                            {p.user?.nickname?.trim() || '-'}
+                          </Typography>
+                          <Typography variant="body2" color="text.secondary">
+                            {getUserFullName(p.user || null)}
+                          </Typography>
+                        </Box>
+                        <Typography variant="body2" fontWeight={600} color="primary.main">
+                          #{p.final_position ?? index + 1}
+                        </Typography>
+                        <Typography variant="body2" fontWeight={600} color="success.main">
+                          {p.points_earned ?? 0} pts
+                        </Typography>
+                        {p.is_active && (
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="inherit"
+                            startIcon={<PersonOffIcon />}
+                            onClick={() => handleInactivatePlayer(p.id)}
+                            disabled={savingResults}
+                          >
+                            Inactivar
+                          </Button>
+                        )}
+                      </Box>
+                    </CardContent>
+                  </Card>
+                ))}
+              </Stack>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Listado de jugadores con cards (solo cuando el torneo NO está finalizado) */}
+      {currentTournament.status !== 'finished' && (
       <Card sx={{ mb: 4 }}>
         <CardContent>
           <Box sx={{ 
@@ -584,7 +728,6 @@ const TournamentManagement: React.FC = () => {
               Jugadores inscriptos ({players.length})
             </Typography>
             
-            {/* Selector de ordenamiento */}
             <ToggleButtonGroup
               value={sortBy}
               exclusive
@@ -650,7 +793,6 @@ const TournamentManagement: React.FC = () => {
                     }}
                   >
                     <CardContent sx={{ p: 3 }}>
-                      {/* Header del jugador */}
                       <Box sx={{ mb: 2 }}>
                         <Box display="flex" alignItems="center" gap={2} mb={1}>
                           <Avatar sx={{ bgcolor: p.is_eliminated ? 'error.main' : 'primary.main' }}>
@@ -678,7 +820,6 @@ const TournamentManagement: React.FC = () => {
 
                       <Divider sx={{ my: 2 }} />
 
-                      {/* Información del jugador */}
                       <Stack spacing={2} sx={{ mb: 3 }}>
                         <Box display="flex" justifyContent="space-between">
                           <Typography variant="body2" color="text.secondary">
@@ -699,32 +840,8 @@ const TournamentManagement: React.FC = () => {
                             size="small" 
                           />
                         </Box>
-
-                        {/* Mostrar posición y puntos para torneos finalizados */}
-                        {currentTournament.status === 'finished' && p.is_eliminated && (
-                          <>
-                            <Box display="flex" justifyContent="space-between">
-                              <Typography variant="body2" color="text.secondary">
-                                Posición Final:
-                              </Typography>
-                              <Typography variant="body2" fontWeight={500} color="primary.main">
-                                #{p.final_position || '-'}
-                              </Typography>
-                            </Box>
-                            
-                            <Box display="flex" justifyContent="space-between">
-                              <Typography variant="body2" color="text.secondary">
-                                Puntos Obtenidos:
-                              </Typography>
-                              <Typography variant="body2" fontWeight={500} color="success.main">
-                                {p.points_earned || 0}
-                              </Typography>
-                            </Box>
-                          </>
-                        )}
                       </Stack>
 
-                      {/* Acciones */}
                       <Box sx={{ 
                         display: 'flex', 
                         justifyContent: 'space-between', 
@@ -732,10 +849,8 @@ const TournamentManagement: React.FC = () => {
                         borderTop: '1px solid',
                         borderColor: 'divider'
                       }}>
-                        {/* Acciones para torneos activos */}
                         {currentTournament.status === 'active' && (
                           <>
-                            {/* Recompra */}
                             <IconButton
                               size="small"
                               onClick={() => { setSelectedPlayerForRebuy(p.id); setRebuyDialogOpen(true); }}
@@ -743,15 +858,11 @@ const TournamentManagement: React.FC = () => {
                               sx={{ 
                                 backgroundColor: 'success.light',
                                 color: 'success.contrastText',
-                                '&:hover': {
-                                  backgroundColor: 'success.main'
-                                }
+                                '&:hover': { backgroundColor: 'success.main' }
                               }}
                             >
                               <MoneyIcon fontSize="small" />
                             </IconButton>
-                            
-                            {/* Addon */}
                             <IconButton
                               size="small"
                               onClick={() => { setSelectedPlayerForAddon(p.id); setAddonDialogOpen(true); }}
@@ -759,65 +870,32 @@ const TournamentManagement: React.FC = () => {
                               sx={{ 
                                 backgroundColor: 'warning.light',
                                 color: 'warning.contrastText',
-                                '&:hover': {
-                                  backgroundColor: 'warning.main'
-                                }
+                                '&:hover': { backgroundColor: 'warning.main' }
                               }}
                             >
                               <AddIcon fontSize="small" />
                             </IconButton>
-                            
-                            {/* Eliminar (eliminación del torneo) */}
                             <IconButton
                               size="small"
                               onClick={() => {
                                 setSelectedPlayerForElimination(p.id);
-                                // Resetear valores a los calculados cuando se abre el diálogo
                                 const eliminatedCount = players.filter(player => player.is_eliminated).length;
                                 const totalPlayers = players.length;
-                                const nextPosition = totalPlayers - eliminatedCount;
-                                const nextPoints = eliminatedCount + 1;
-                                setEliminationPosition(nextPosition);
-                                setEliminationPoints(nextPoints);
+                                setEliminationPosition(totalPlayers - eliminatedCount);
+                                setEliminationPoints(eliminatedCount + 1);
                                 setEliminationDialogOpen(true);
                               }}
                               disabled={p.is_eliminated || !p.is_active}
                               sx={{
                                 backgroundColor: 'error.light',
                                 color: 'error.contrastText',
-                                '&:hover': {
-                                  backgroundColor: 'error.main'
-                                }
+                                '&:hover': { backgroundColor: 'error.main' }
                               }}
                             >
                               <PersonOffIcon fontSize="small" />
                             </IconButton>
                           </>
                         )}
-
-                        {/* Acciones para torneos finalizados */}
-                        {currentTournament.status === 'finished' && p.is_eliminated && (
-                          <IconButton
-                            size="small"
-                            onClick={() => {
-                              setSelectedPlayerForEdit(p.id);
-                              setEditPosition(p.final_position || 0);
-                              setEditPoints(p.points_earned || 0);
-                              setEditPlayerDialogOpen(true);
-                            }}
-                            sx={{
-                              backgroundColor: 'primary.light',
-                              color: 'primary.contrastText',
-                              '&:hover': {
-                                backgroundColor: 'primary.main'
-                              }
-                            }}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        )}
-                        
-                        {/* Desregistrar (solo para torneos no finalizados) */}
                         {currentTournament.status !== 'finished' && (
                           <IconButton
                             size="small"
@@ -829,13 +907,7 @@ const TournamentManagement: React.FC = () => {
                                 console.error('Error desregistrando jugador', e);
                               }
                             }}
-                            sx={{ 
-                              backgroundColor: 'grey.300',
-                              color: 'grey.700',
-                              '&:hover': {
-                                backgroundColor: 'grey.400'
-                              }
-                            }}
+                            sx={{ backgroundColor: 'grey.300', color: 'grey.700', '&:hover': { backgroundColor: 'grey.400' } }}
                           >
                             <DeleteIcon fontSize="small" />
                           </IconButton>
@@ -849,6 +921,7 @@ const TournamentManagement: React.FC = () => {
           )}
         </CardContent>
       </Card>
+      )}
 
       {/* FAB para inscribir jugador en móviles */}
       {isMobile && (

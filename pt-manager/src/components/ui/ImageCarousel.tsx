@@ -53,8 +53,6 @@ const ImageCarousel: React.FC<ImageCarouselProps> = ({
       sx={{
         position: 'relative',
         width: '100%',
-        maxWidth: '360px',
-        margin: '0 auto',
         mb: 4
       }}
     >

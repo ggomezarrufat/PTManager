@@ -991,7 +991,8 @@ router.put('/players/:playerId/results',
   [
     param('playerId').isUUID().withMessage('Player ID debe ser un UUID válido'),
     body('final_position').optional().isInt({ min: 1 }).withMessage('Final position debe ser un entero positivo'),
-    body('points_earned').optional().isInt({ min: 0 }).withMessage('Points debe ser un entero no negativo')
+    body('points_earned').optional().isInt({ min: 0 }).withMessage('Points debe ser un entero no negativo'),
+    body('is_active').optional().isBoolean().withMessage('is_active debe ser un booleano')
   ],
   async (req, res, next) => {
     try {
@@ -1005,11 +1006,12 @@ router.put('/players/:playerId/results',
       }
 
       const { playerId } = req.params;
-      const { final_position, points_earned } = req.body;
+      const { final_position, points_earned, is_active } = req.body;
 
       const updateData = {};
       if (typeof final_position !== 'undefined') updateData.final_position = final_position;
       if (typeof points_earned !== 'undefined') updateData.points_earned = points_earned;
+      if (typeof is_active !== 'undefined') updateData.is_active = is_active;
 
       // Si se establece posición final, marcar eliminado e inactivo si aún no lo estaba
       if (typeof final_position !== 'undefined') {

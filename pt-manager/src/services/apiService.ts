@@ -516,6 +516,7 @@ const playerService = {
     final_position?: number;
     points_earned?: number;
     eliminated_by?: string;
+    is_active?: boolean;
   }) {
     return await apiRequest<{
       message: string;

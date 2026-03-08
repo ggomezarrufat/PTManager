@@ -15,7 +15,7 @@ const router = express.Router();
  *         name: season
  *         schema:
  *           type: string
- *         description: ID o nombre de la temporada (ej: "2025"). Si no se proporciona, se obtienen todos los torneos.
+ *         description: "ID o nombre de la temporada (ej. 2025). Si no se proporciona, se obtienen todos los torneos."
  *       - in: query
  *         name: limit
  *         schema:

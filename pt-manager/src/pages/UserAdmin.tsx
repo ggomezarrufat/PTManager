@@ -505,6 +505,12 @@ const UserAdmin: React.FC = () => {
         maxWidth="sm"
         fullWidth
         fullScreen={isMobile}
+        slotProps={{ root: { sx: { zIndex: 10001 } } }}
+        sx={isMobile ? { 
+          '& .MuiDialogActions-root': { 
+            pb: 'calc(16px + env(safe-area-inset-bottom))' 
+          } 
+        } : {}}
       >
         <DialogTitle sx={{ 
           pb: 1,
